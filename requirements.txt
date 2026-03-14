@@ -14,17 +14,21 @@ pdfplumber==0.10.3
 # --- TRAITEMENT IMAGES & SCAN ---
 Pillow==10.2.0
 pytesseract==0.3.10
-opencv-python-headless  # Crucial pour Docker/Render
+opencv-python-headless
 
-# --- OFFICE & DATA (TABLEAUX) ---
+# --- OFFICE & DATA (CONVERSIONS & TABLEAUX) ---
 python-docx==1.1.0
-camelot-py[base]==0.11.0
-pandas==2.2.0
+python-pptx==0.6.21
+XlsxWriter==3.1.9
 openpyxl==3.1.2
+pandas==2.2.0
+camelot-py[base]==0.11.0
+tabula-py==2.9.0
 
 # --- GÉNÉRATION DE DOCUMENTS & FILIGRANE ---
 reportlab==4.0.9
 requests==2.31.0
+pdfkit==1.0.0
 
 # --- UTILITAIRES ---
 typing-extensions==4.9.0
