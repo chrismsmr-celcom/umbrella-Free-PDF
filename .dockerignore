@@ -1,0 +1,20 @@
+# Ignorer les dossiers Git et IDE
+.git
+.gitignore
+.vscode
+.idea
+
+# Ignorer les environnements virtuels
+venv/
+.venv/
+env/
+
+# Ignorer les fichiers de tests et les fichiers temporaires locaux
+tests/
+__pycache__/
+*.pdf
+*.docx
+*.zip
+
+# Ignorer le fichier de config Render (Docker n'en a pas besoin à l'intérieur)
+render.yaml
