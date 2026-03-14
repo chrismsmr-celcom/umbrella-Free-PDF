@@ -28,7 +28,7 @@ tabula-py==2.9.0
 # --- GÉNÉRATION DE DOCUMENTS & FILIGRANE ---
 reportlab==4.0.9
 requests==2.31.0
-pdfkit==1.0.0
+weasyprint==61.2
 
 # --- UTILITAIRES ---
 typing-extensions==4.9.0
