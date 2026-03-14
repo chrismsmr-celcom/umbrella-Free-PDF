@@ -5,11 +5,12 @@ FROM python:3.10-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Installer les dépendances système (Version corrigée pour Debian Trixie/Render)
+# Installer les dépendances système (Version complète pour toutes les fonctions d'Umbrella)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer \
     libreoffice-calc \
     libreoffice-impress \
+    fonts-liberation \
     poppler-utils \
     tesseract-ocr \
     tesseract-ocr-fra \
@@ -17,6 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ghostscript \
     python3-tk \
     libgl1 \
+    default-jre \
+    wkhtmltopdf \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
