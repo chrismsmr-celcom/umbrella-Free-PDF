@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Umbrella Mobile Scan</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --primary: #311038; --accent: #F0D13C; }
+        body { font-family: sans-serif; background: #f5f5fa; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .card { background: white; width: 85%; padding: 40px 20px; border-radius: 30px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .btn-scan { background: var(--primary); color: var(--accent); border: none; padding: 20px 30px; border-radius: 20px; font-weight: 800; font-size: 1.1rem; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .loading { display: none; color: var(--primary); font-weight: 600; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <img src="https://oysdycuouodarfkmdtop.supabase.co/storage/v1/object/public/LOGO/Moniteo.png" style="height:35px; margin-bottom:30px;">
+        <h2 style="color:var(--primary)">Numérisation</h2>
+        <p style="color:#888; margin-bottom:40px;">Prenez une photo claire de votre document pour le transférer sur votre ordinateur.</p>
+        
+        <input type="file" id="cameraInput" accept="image/*" capture="camera" style="display:none">
+        <button class="btn-scan" onclick="document.getElementById('cameraInput').click()">
+            <i class="fa fa-camera"></i> PRENDRE PHOTO
+        </button>
+        
+        <div id="loader" class="loading">
+            <i class="fa fa-spinner fa-spin"></i> Envoi vers l'ordinateur...
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const session = urlParams.get('s');
+
+        document.getElementById('cameraInput').onchange = async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('loader').style.display = 'block';
+            
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch(`/scan/upload-mobile/${session}`, { method: 'POST', body: formData });
+                if (res.ok) {
+                    document.body.innerHTML = `
+                        <div class="card">
+                            <i class="fa fa-check-circle" style="font-size:4rem; color:#27ae60; margin-bottom:20px;"></i>
+                            <h2 style="color:var(--primary)">Envoyé !</h2>
+                            <p>Vous pouvez maintenant continuer sur votre ordinateur.</p>
+                        </div>`;
+                }
+            } catch (err) { alert("Erreur de transfert"); }
+        };
+    </script>
+</body>
+</html>
