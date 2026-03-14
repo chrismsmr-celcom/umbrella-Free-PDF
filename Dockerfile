@@ -5,7 +5,7 @@ FROM python:3.10-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Installer les dépendances système
+# Installer les dépendances système (Version corrigée pour Debian Trixie/Render)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer \
     libreoffice-calc \
@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-eng \
     ghostscript \
     python3-tk \
-    libgl1-mesa-glx \
+    libgl1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -37,6 +37,5 @@ USER umbrella_user
 # EXPOSE est indicatif, Render utilise sa variable $PORT
 EXPOSE 10000
 
-# Commande de lancement dynamique
-# On utilise $PORT (injecté par Render) ou 10000 par défaut
+# Commande de lancement dynamique optimisée pour Render
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000}"]
