@@ -1,0 +1,1756 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Umbrella PDF Engine v3.0 | Pro Ecosystem</title>
+    
+    <link rel="manifest" href="assets/manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Umbrella">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2563eb">
+     
+     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+        :root {
+            --primary: #311038;
+            --accent: #F0D13C;
+            --bg: #f5f5fa;
+            --success: #27ae60;
+            --sidebar-bg: #FFFFFF;
+            --hover-bg: #f8f8fc;
+            --text-muted: #888;
+        }
+        body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; display: flex; height: 100vh; background: var(--bg); overflow: hidden; }
+
+        /* Sidebar Style */
+        .sidebar { width: 340px; background: var(--sidebar-bg); box-shadow: 2px 0 20px rgba(0,0,0,0.05); display: flex; flex-direction: column; flex-shrink: 0; z-index: 110; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .sidebar-header { padding: 25px 25px 15px; text-align: center; }
+        .logo { width: 130px; margin-bottom: 10px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1)); }
+        .sidebar h2 { color: var(--primary); font-size: 0.75rem; letter-spacing: 2px; margin: 0; opacity: 0.6; font-weight: 800; text-transform: uppercase; }
+
+        /* Search Bar */
+        .search-wrapper { padding: 0 20px 15px; position: relative; }
+        .search-bar {
+            width: 100%; padding: 12px 15px 12px 40px; border: 1px solid #eee; border-radius: 12px;
+            background: #f9f9fb; font-size: 0.85rem; outline: none; transition: all 0.3s; box-sizing: border-box;
+        }
+        .search-bar:focus { border-color: var(--primary); background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .search-wrapper i { position: absolute; left: 35px; top: 13px; color: #aaa; font-size: 0.9rem; }
+
+        /* Accordéon */
+        .nav-container { flex: 1; overflow-y: auto; padding: 10px; }
+        .accordion-item { border-radius: 12px; margin-bottom: 8px; border: 1px solid transparent; transition: all 0.3s; }
+        .accordion-item.active { background: #fafafa; border-color: #f0f0f0; }
+        .accordion-header { width: 100%; padding: 14px 15px; background: none; border: none; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: var(--primary); font-weight: 700; font-size: 1rem; }
+        .accordion-header i.chevron { font-size: 0.7rem; transition: transform 0.3s; opacity: 0.5; }
+        .accordion-item.active .chevron { transform: rotate(180deg); }
+        .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .accordion-item.active .accordion-content { max-height: 1000px; padding-bottom: 10px; }
+
+        /* Action Buttons */
+        .action-btn { width: 92%; margin-left: 4%; padding: 10px 12px; border: none; background: transparent; text-align: left; color: #555; font-size: 0.8rem; font-weight: 500; cursor: pointer; border-radius: 8px; display: flex; align-items: center; transition: all 0.2s; }
+        .action-btn:hover { background: var(--primary); color: white; padding-left: 18px; }
+        .action-btn i { width: 22px; margin-right: 10px; font-size: 1.9rem; opacity: 0.7; text-align: center; }
+        .action-btn.active { background: var(--primary); color: var(--accent); font-weight: 1000; }
+
+        /* Main Workspace */
+        .workarea { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; position: relative; }
+        .dropzone { width: 100%; max-width: 750px; min-height: 500px; background: #fff; border: 3px dashed #d1d1e0; border-radius: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; position: relative; }
+        .dropzone:hover { border-color: var(--primary); background: #fafafa; }
+        /* Grille de prévisualisation façon iLovePDF */
+        /* Container de prévisualisation Premium */
+/* --- LE CONTENEUR (CADRE FIXE) --- */
+/* --- LE CONTENEUR (CADRE FIXE ET LIMITE) --- */
+.preview-container {
+    width: 95%;
+    max-width: 900px;
+    height: 65vh; /* Fixe la hauteur pour éviter l'explosion du layout */
+    background: #ffffff; 
+    border-radius: 24px;
+    padding: 10px;
+    display: none;
+    margin-bottom: 25px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+    border: 1px solid #eee;
+    position: relative;
+    overflow: hidden; /* Important : rien ne sort du cadre */
+    animation: slideUpFade 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* --- LE WRAPPER (ZONE DE SCROLL INTERNE) --- */
+.pdf-wrapper {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto; /* Scroll interne si le PDF est plus haut que le cadre */
+    overflow-x: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px 0;
+    background: #f0f0f5; /* Fond gris clair pour faire ressortir le doc blanc */
+    border-radius: 15px;
+}
+.pdf-wrapper img {
+    max-width: 95%;
+    max-height: 100%;
+    object-fit: contain; /* Garde les proportions sans déformer */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    background: white;
+}
+/* --- LE CANVAS (LE DOCUMENT RENDU) --- */
+#pdfCanvas {
+    max-width: 95% !important; /* Force le canvas à tenir dans la largeur du wrapper */
+    height: auto !important;   /* Maintient le ratio */
+    background: white;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    border-radius: 4px;
+}
+
+/* Badge de prévisualisation */
+.preview-badge {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: white;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    z-index: 10;
+}
+/* --- AJUSTEMENT DU BOUTON DOWNLOAD --- */
+.download-btn {
+    margin: 20px auto;
+    display: block;
+    max-width: 400px; /* Évite qu'il soit trop large sur grand écran */
+    padding: 18px;
+    background: var(--primary);
+    color: var(--accent);
+    border: none;
+    border-radius: 15px;
+    font-weight: 800;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: 0.3s;
+}
+.page-item-selector:hover {
+    border-color: var(--primary) !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+.sortable-ghost {
+    opacity: 0.3;
+    background: #007bff !important;
+}
+/* Conteneur Minimaliste */
+#compressOptions {
+    padding: 10px 20px;
+    margin: 10px 0 !important;
+    background: transparent; /* Suppression du fond gris */
+    animation: fadeIn 0.4s ease;
+}
+
+/* Label discret */
+#compressOptions label {
+    display: block;
+    font-size: 0.7rem; /* Plus petit */
+    font-weight: 700;
+    color: var(--text-muted); /* Utilisation de ta variable grise */
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 6px;
+    padding-left: 2px;
+}
+
+/* Select "Ghost" Style */
+.style-select {
+    width: 100%;
+    height: 40px;
+    padding: 0 10px;
+    font-size: 0.9rem;
+    color: var(--primary);
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid #eee; /* Juste une ligne fine en bas */
+    border-radius: 0; /* Pas d'arrondi sur un style souligné */
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    
+    /* Flèche plus fine et discrète */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0 center;
+    background-size: 18px;
+    transition: all 0.3s ease;
+}
+
+/* Interaction subtile */
+.style-select:hover {
+    border-bottom-color: var(--primary);
+}
+
+.style-select:focus {
+    border-bottom-color: var(--primary);
+    /* Pas de box-shadow pour rester ultra-minimal */
+}
+
+/* Style des options */
+.style-select option {
+    background: white;
+    color: var(--primary);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+/* --- MODAL STYLES --- */
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: rgba(49, 16, 56, 0.7); /* Ton violet en transparence */
+    backdrop-filter: blur(8px);
+    padding: 20px;
+}
+
+.modal-content {
+    background: white;
+    margin: 2vh auto;
+    width: 95%;
+    max-width: 1100px;
+    height: 90vh;
+    border-radius: 24px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+    padding: 20px 30px;
+    border-bottom: 1px solid #f0f0f5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+/* --- BOUTONS MINI ET GROUPES D'INPUT --- */
+
+/* Bouton Détecter vides / Magic */
+.btn-tool-mini {
+    font-size: 0.75rem;
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid #e0e0e0;
+    background: #ffffff;
+    color: #444;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.btn-tool-mini:hover {
+    background: #f8f9fa;
+    border-color: var(--primary);
+    color: var(--primary);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.btn-tool-mini i {
+    color: var(--primary);
+    font-size: 0.8rem;
+}
+
+/* Groupe d'entrée pour la taille Max (Mo) */
+.input-group-mini {
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 20px;
+    padding: 2px 4px 2px 12px;
+    gap: 8px;
+    transition: border-color 0.3s;
+}
+
+.input-group-mini:focus-within {
+    border-color: var(--primary);
+}
+
+.input-group-mini i {
+    font-size: 0.75rem;
+    color: #999;
+}
+
+.input-group-mini input {
+    width: 60px;
+    border: none;
+    background: transparent;
+    font-size: 0.75rem;
+    outline: none;
+    font-weight: bold;
+    color: #333;
+}
+
+.input-group-mini button {
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    padding: 5px 12px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    font-weight: 800;
+    transition: opacity 0.2s;
+}
+
+.input-group-mini button:hover {
+    opacity: 0.9;
+}
+
+/* Bouton de fermeture en haut à droite */
+.btn-close-circle {
+    border: none;
+    background: #f5f5f7;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    transition: all 0.2s;
+}
+
+.btn-close-circle:hover {
+    background: #eeeef2;
+    color: #333;
+    transform: rotate(90deg);
+}
+.modal-footer {
+    padding: 20px 30px;
+    background: #fcfcfe;
+    border-top: 1px solid #f0f0f5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+/* --- BASE MODAL (LE FOND) --- */
+.modal {
+    display: none; 
+    position: fixed;
+    inset: 0; /* Couvre tout l'écran */
+    z-index: 3000;
+    background: rgba(49, 16, 56, 0.6); /* Ton violet --primary */
+    backdrop-filter: blur(8px);
+    display: none; /* Changé en Flex par JS lors de l'ouverture */
+    align-items: center; /* Centre verticalement */
+    justify-content: center; /* Centre horizontalement */
+    padding: 20px;
+}
+
+/* --- LE CONTENU (LA BOITE BLANCHE) --- */
+.modal-content {
+    background: white;
+    width: 100%;
+    max-width: 420px; /* Taille optimale pour l'ergonomie */
+    max-height: 90vh; /* Empêche de sortir de l'écran */
+    border-radius: 30px; /* Ton style Umbrella */
+    padding: 40px;
+    position: relative;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    overflow-y: auto; /* Scroll interne si trop de contenu */
+    animation: modalSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes modalSlideIn {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+/* --- GRID & PAGES --- */
+#pagesGrid {
+    flex: 1;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 25px;
+    padding: 30px;
+    background: #f8f9fc;
+}
+
+.page-item-selector {
+    background: white;
+    border: 2px solid #eef0f7;
+    border-radius: 12px;
+    padding: 10px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+}
+
+.page-item-selector:hover {
+    transform: translateY(-5px);
+    border-color: var(--primary);
+    box-shadow: 0 10px 15px rgba(0,0,0,0.05);
+}
+
+.page-item-selector canvas {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    background: #eee;
+}
+
+.page-item-selector .page-number {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    border: 1px solid #ddd;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: bold;
+    color: #666;
+}
+
+/* --- ETAT SÉLECTIONNÉ --- */
+.page-item-selector.selected {
+    border-color: var(--primary);
+    background: rgba(49, 16, 56, 0.03);
+}
+
+.page-item-selector.selected::after {
+    content: "\f00c"; /* Icone Check FontAwesome */
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: var(--primary);
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Animation Sortable (Drag & Drop) */
+.sortable-ghost {
+    opacity: 0.3;
+    transform: scale(0.9);
+}
+        /* Mobile Adjustments */
+        .menu-toggle { display: none; position: fixed; top: 15px; left: 15px; z-index: 120; background: var(--primary); color: white; border: none; width: 50px; height: 50px; border-radius: 12px; cursor: pointer; }
+        .mobile-header { display: none; position: fixed; top: 0; left: 0; right: 0; height: 80px; background: var(--bg); z-index: 80; align-items: center; justify-content: center; }
+        .mobile-logo { height: 40px; }
+        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; backdrop-filter: blur(2px); }
+
+        @media (max-width: 720px) {
+            .menu-toggle, .mobile-header { display: flex; align-items: center; justify-content: center; }
+            .sidebar { position: fixed; left: -100%; top: 0; bottom: 0; width: 300px; }
+            .sidebar.open { left: 0; }
+            .sidebar-overlay.active { display: block; }
+            .workarea { padding: 90px 20px 100px; width: 100%; box-sizing: border-box; }
+            .dropzone { min-height: 300px; border-radius: 25px; }
+            .file-list { grid-template-columns: 1fr; width: 90%; }
+            @media (max-width: 992px) {
+    /* ... tes autres styles mobile ... */
+
+    .download-btn {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+        width: calc(100% - 40px);
+        margin: 0;
+        z-index: 90;
+        
+        /* État initial : Caché et descendu */
+        opacity: 0;
+        transform: translateY(100px);
+        pointer-events: none; /* Empêche de cliquer quand c'est invisible */
+        transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Effet rebond premium */
+    }
+
+    .download-btn.show-mobile {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+   
+}  
+.preview-container {
+    width: 95%;
+    max-width: 900px;
+    height: 65vh;
+    background: var(--bg); /* Utilise ton blanc cassé #f5f5fa */
+    border-radius: 30px;
+    padding: 30px;
+    display: none;
+    margin-bottom: 25px;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.02); /* Légère profondeur interne */
+    position: relative;
+    overflow: hidden;
+    animation: slideUpFade 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.pdf-wrapper {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    padding: 20px 0;
+}
+
+#pdfCanvas {
+    background: white;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08); /* Ombre portée du document */
+    border-radius: 4px; /* Un PDF a rarement des coins très arrondis, on reste subtil */
+    max-width: 100%;
+    height: auto !important;
+}
+@media (max-width: 720px) {
+    .preview-container {
+        height: 50vh; /* Un peu plus petit sur mobile pour laisser voir le bouton */
+        padding: 15px;
+    }
+}
+.download-btn {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px); /* Caché en bas */
+    width: 90%;
+    max-width: 400px;
+    padding: 18px;
+    background: var(--primary);
+    color: var(--accent);
+    border: none;
+    border-radius: 20px;
+    font-weight: 800;
+    text-transform: uppercase;
+    cursor: pointer;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+/* Classe qui sera ajoutée en JS pour montrer le bouton */
+.download-btn.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+  </style>
+</head>
+<body>
+
+<button class="menu-toggle" id="menuToggle"><i class="fa fa-bars"></i></button>
+
+<div class="mobile-header">
+    <img src="https://i.postimg.cc/MGXwDDmH/Moniteo-removebg-preview.png" alt="Logo" class="mobile-logo">
+</div>
+
+<div class="sidebar-overlay" id="overlay"></div>
+
+<div class="sidebar">
+    <div class="sidebar-header">
+        <img src="https://i.postimg.cc/MGXwDDmH/Moniteo-removebg-preview.png" alt="Logo" class="logo">
+        <h2>Umbrella PDFconvert</h2>
+    </div>
+
+    <div class="search-wrapper">
+        <i class="fa fa-search"></i>
+        <input type="text" id="toolSearch" class="search-bar" placeholder="Rechercher un outil...">
+    </div>
+
+    <div class="nav-container" id="accordion">
+        <div class="accordion-item active">
+            <button class="accordion-header">1. Organize <i class="fa fa-chevron-down chevron"></i></button>
+            <div class="accordion-content">
+                <button class="action-btn" onclick="setMode('organize/merge', this)"><i class="fa fa-layer-group"></i> Merge PDF</button>
+                <button class="action-btn" onclick="setMode('organize/split', this)"><i class="fa fa-scissors"></i> Split PDF</button>
+                <button class="action-btn" onclick="setMode('organize/remove', this)"><i class="fa fa-trash-alt"></i> Remove pages</button>
+                <button class="action-btn" onclick="setMode('organize/extract', this)"><i class="fa fa-file-export"></i> Extract pages</button>
+                <button class="action-btn" onclick="setMode('organize/reorder', this)"><i class="fa fa-th-large"></i> Organize PDF</button>
+                <button class="action-btn" onclick="openToolModal('scan')"><i class="fa fa-mobile-alt"></i> Scan to PDF</button>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <button class="accordion-header">2. Optimize <i class="fa fa-chevron-down chevron"></i></button>
+            <div class="accordion-content">
+                <button class="action-btn" onclick="setMode('edit/compress', this)"><i class="fa fa-compress-arrows-alt"></i> Compress PDF</button>
+                <button class="action-btn" onclick="setMode('edit/repair', this)"><i class="fa fa-tools"></i> Repair PDF</button>
+                <button class="action-btn" onclick="setMode('convert/ocr', this)"><i class="fa fa-search"></i> OCR PDF</button>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <button class="accordion-header">3. Convert to PDF <i class="fa fa-chevron-down chevron"></i></button>
+            <div class="accordion-content">
+                <button class="action-btn" onclick="setMode('convert/images-to-pdf', this)"><i class="fa fa-image"></i> JPG to PDF</button>
+                <button class="action-btn" onclick="setMode('convert/office-to-pdf', this)"><i class="fa fa-file-word"></i> WORD to PDF</button>
+                <button class="action-btn" onclick="setMode('convert/office-to-pdf', this)"><i class="fa fa-file-powerpoint"></i> PPT to PDF</button>
+                <button class="action-btn" onclick="setMode('convert/office-to-pdf', this)"><i class="fa fa-file-excel"></i> EXCEL to PDF</button>
+                <button class="action-btn" onclick="setMode('convert/html-to-pdf', this)"><i class="fa fa-code"></i> HTML to PDF</button>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <button class="accordion-header">4. Convert from PDF <i class="fa fa-chevron-down chevron"></i></button>
+            <div class="accordion-content">
+                <button class="action-btn" onclick="setMode('convert/pdf-to-jpg', this)"><i class="fa fa-file-image"></i> PDF to JPG</button>
+                <button class="action-btn" onclick="setMode('convert/pdf-to-word', this)"><i class="fa fa-file-word"></i> PDF to WORD</button>
+                <button class="action-btn" onclick="setMode('convert/pdf-to-pptx', this)"><i class="fa fa-file-powerpoint"></i> PDF to PPT</button>
+                <button class="action-btn" onclick="setMode('convert/pdf-to-excel', this)"><i class="fa fa-file-excel"></i> PDF to EXCEL</button>
+                <button class="action-btn" onclick="setMode('edit/pdf-to-pdfa', this)"><i class="fa fa-archive"></i> PDF to PDF/A</button>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <button class="accordion-header">5. Security & Intelligence <i class="fa fa-chevron-down chevron"></i></button>
+            <div class="accordion-content">
+                <button class="action-btn" onclick="setMode('security/protect', this)"><i class="fa fa-lock"></i> Protect PDF</button>
+                <button class="action-btn" onclick="setMode('edit/unlock', this)"><i class="fa fa-unlock"></i> Unlock PDF</button>
+                <button class="action-btn" onclick="setMode('edit/sign', this)"><i class="fa fa-signature"></i> Sign PDF</button>
+                <button class="action-btn" onclick="setMode('edit/translate', this)"><i class="fa fa-language"></i> Translate PDF</button>
+                <button class="action-btn" onclick="setMode('edit/intelligence', this)"><i class="fa fa-brain"></i> PDF Intelligence</button>
+            </div>
+        </div>
+        <div id="noResults" class="no-results" style="display:none; text-align:center; padding:20px; font-size:0.8rem; color:#999;">Aucun outil trouvé...</div>
+    </div>
+
+    <div id="compressOptions" style="display:none; margin: 10px 15px;">
+        <label style="font-size: 0.9em; font-weight: bold;">Qualité de compression :</label>
+        <select id="compressQuality" class="style-select" style="width: 100%; margin-top: 5px;">
+            <option value="low">Légère (Meilleure qualité)</option>
+            <option value="medium" selected>Moyenne (Équilibré)</option>
+            <option value="high">Forte (Fichier plus petit)</option>
+        </select>
+    </div>
+
+    <div id="ocrOptions" style="display:none; margin: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; border: 1px solid #eee;">
+        <label style="font-weight: bold; font-size: 0.9em;">Langue du document :</label>
+        <select id="ocrLanguage" class="form-select" style="width: 100%; margin-top: 5px; padding: 8px; border-radius: 5px; border: 1px solid #ddd;">
+            <option value="fra">Français</option>
+            <option value="eng">Anglais</option>
+            <option value="spa">Espagnol</option>
+        </select>
+        <small style="color: #666; display: block; margin-top: 5px;">Indiquer la langue améliore grandement la précision de la détection de texte.</small>
+    </div>
+
+    <button id="downloadBtn" class="download-btn">Lancer l'opération</button>
+</div>
+
+<div class="workarea">
+    <div id="previewContainer" class="preview-container">
+        <div class="preview-badge"><i class="fa fa-eye"></i> Aperçu</div>
+        <div class="pdf-wrapper"><canvas id="pdfCanvas"></canvas></div>
+        <button onclick="resetUpload()" style="position:absolute; top:15px; right:15px; background:white; border:1px solid #ddd; color:var(--primary); width:32px; height:32px; border-radius:50%; cursor:pointer; z-index:100; display:flex; align-items:center; justify-content:center;">
+            <i class="fa fa-times"></i>
+        </button>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+        <div id="dropzone-content">
+            <i class="fa fa-cloud-upload-alt" style="font-size: 60px; color: var(--primary); opacity: 0.3; margin-bottom: 15px;"></i>
+            <p style="font-weight: 700; font-size: 1.2rem; margin: 0;">Déposez vos fichiers ici</p>
+            <p style="font-size: 0.8rem; color: #888; margin-top: 10px;">PDF, Word, Excel, Images</p>
+            <div style="margin-top: 20px; padding: 10px 20px; background: #eee; border-radius: 30px; display: inline-block; font-size: 0.8rem; font-weight: 600; color: var(--primary);">Parcourir les fichiers</div>
+        </div>
+    </div>
+    <input type="file" id="fileInput" multiple hidden>
+</div>
+
+<div id="universalModal" class="modal">
+    <div class="modal-content" id="universalModalContent">
+        <button onclick="closeUniversalModal()" class="btn-close-circle" style="position:absolute; top:20px; right:20px;">&times;</button>
+        
+        <div id="modalHeader" style="margin-bottom:20px;">
+            <div id="modalIcon"></div>
+            <h3 id="modalTitle" style="color:var(--primary); margin:10px 0 5px 0; font-weight:800;">Titre</h3>
+            <p id="modalDescription" style="color:#666; font-size:0.85rem;"></p>
+        </div>
+
+        <div id="modalBody" style="margin-bottom:20px;">
+            </div>
+
+        <div id="modalFooter" style="display:none; padding-top:15px; border-top:1px solid #eee;">
+            <button id="modalActionBtn" class="action-btn" style="width:100%; justify-content:center;"></button>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+    const BASE_URL = "http://127.0.0.1:8000"; 
+    let currentRoute = '';
+    let selectedFiles = [];
+    let selectedPages = new Set(); 
+    let sortableInstance = null;
+    let currentProtectFile = null;
+    let isDrawing = false;
+    let sigCanvas, sigCtx;
+    
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const routeMapping = {
+    // --- ORGANIZE ---
+    'organize/merge': 'organize/merge',
+    'organize/split': 'organize/split',
+    'organize/remove': 'organize/remove',
+    'organize/extract': 'organize/extract',
+    'organize/reorder': 'organize/reorder',
+
+    // --- CONVERT ---
+    'convert/ocr': 'convert/ocr',
+    'convert/office-to-pdf': 'convert/office-to-pdf',
+    'convert/images-to-pdf': 'convert/images-to-pdf',
+    'convert/pdf-to-word': 'convert/pdf-to-word',
+    'convert/pdf-to-excel': 'convert/pdf-to-excel',
+    'convert/pdf-to-jpg': 'convert/pdf-to-jpg',
+    'convert/pdf-to-pptx': 'convert/pdf-to-pptx',
+    'convert/html-to-pdf': 'convert/html-to-pdf',
+
+    // --- SECURITY & SIGN ---
+    'security/protect': 'security/protect',
+    'edit/unlock': 'edit/unlock', // ✅ Correspond à ton nouveau unlock.py
+    'edit/sign': 'edit/sign',     // ✅ Ajouté pour le module Signature
+
+    // --- EDIT & REPAIR ---
+    'edit/repair': 'edit/repair',
+    'edit/compress': 'edit/compress',
+    'edit/pdf-to-pdfa': 'edit/pdf-to-pdfa',
+    
+    // --- SCAN ---
+    'scan/process': 'scan/process' // ✅ Pour la finalisation du flux mobile
+};    // --- ELEMENTS DU DOM ---
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const searchInput = document.getElementById('toolSearch');
+    const accordionItems = document.querySelectorAll('.accordion-item');
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('overlay');
+    const dlBtn = document.getElementById('downloadBtn');
+
+    // --- UTILS : UI LOADER ---
+    function setBtnLoading(isLoading, text = "") {
+        if (!dlBtn) return;
+        if (isLoading) {
+            dlBtn.disabled = true;
+            dlBtn.innerHTML = `<i class="fa fa-spinner fa-spin"></i> ${text || 'Analyse...'}`;
+        } else {
+            dlBtn.disabled = false;
+            const activeBtn = document.querySelector(`.action-btn.active`);
+            const btnLabel = activeBtn ? activeBtn.textContent.trim() : 'Lancer';
+            dlBtn.innerHTML = 'Lancer ' + btnLabel;
+        }
+    }
+
+    // --- NAVIGATION & SEARCH ---
+    if(searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase().trim();
+            accordionItems.forEach(item => {
+                const btns = item.querySelectorAll('.action-btn');
+                let hasMatch = false;
+                btns.forEach(btn => {
+                    const match = btn.textContent.toLowerCase().includes(term);
+                    btn.style.display = match ? 'flex' : 'none';
+                    if(match) hasMatch = true;
+                });
+                item.style.display = (term === '' || hasMatch) ? 'block' : 'none';
+                if(term !== '' && hasMatch) item.classList.add('active');
+            });
+        });
+    }
+
+    document.querySelectorAll('.accordion-header').forEach(h => h.addEventListener('click', () => {
+        const item = h.parentElement;
+        const wasActive = item.classList.contains('active');
+        accordionItems.forEach(i => i.classList.remove('active'));
+        if(!wasActive) item.classList.add('active');
+    }));
+
+  function setMode(route, btn) {
+    currentRoute = route;
+    
+    // 1. Gestion de l'état actif sur les boutons
+    document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // 2. Gestion des Options Contextuelles (Compress, OCR, etc.)
+    const compressOpts = document.getElementById('compressOptions');
+    if (compressOpts) {
+        compressOpts.style.display = (route === 'edit/compress') ? 'block' : 'none';
+    }
+
+    const ocrOpts = document.getElementById('ocrOptions');
+    if (ocrOpts) {
+        ocrOpts.style.display = (route === 'convert/ocr') ? 'block' : 'none';
+    }
+
+    // 3. Mise à jour dynamique de l'input de fichier (Filtres)
+    const fileInput = document.getElementById('fileInput'); // Assure-toi d'avoir cet ID
+    if (fileInput) {
+        if (route === 'convert/html-to-pdf') {
+            fileInput.accept = ".html";
+        } else if (route === 'convert/office-to-pdf') {
+            fileInput.accept = ".docx,.doc,.xlsx,.xls,.pptx,.ppt";
+        } else if (route.includes('images')) {
+            fileInput.accept = "image/*";
+        } else {
+            fileInput.accept = ".pdf";
+        }
+    }
+
+    // 4. Mise à jour du bouton de lancement (dlBtn)
+    if (typeof dlBtn !== 'undefined' && dlBtn) {
+        const actionName = btn.textContent.trim();
+        // On garde l'icône si tu en as une, ou on met juste le texte
+        dlBtn.innerHTML = `<i class="fa fa-play"></i> Lancer ${actionName}`;
+        
+        // Vérifie si des fichiers sont déjà sélectionnés pour afficher le bouton
+        if (typeof selectedFiles !== 'undefined' && selectedFiles.length > 0) {
+            dlBtn.classList.add('visible');
+        }
+    }
+
+    // 5. Fermeture automatique du menu sur mobile
+    if (window.innerWidth <= 992 && typeof toggleMenu === 'function') {
+        toggleMenu();
+    }
+}
+function toggleMenu() {
+    if (!sidebar || !overlay) return;
+    
+    const isOpen = sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+    
+    // Mise à jour de l'icône du bouton toggle
+    if (menuToggle) {
+        const iconClass = isOpen ? 'fa-times' : 'fa-bars';
+        menuToggle.innerHTML = `<i class="fa ${iconClass}"></i>`;
+    }
+}
+
+// Event Listeners
+if (menuToggle) menuToggle.onclick = toggleMenu;
+if (overlay) overlay.onclick = toggleMenu;
+
+    async function triggerMobileScan() {
+        const scanModal = document.getElementById('scanModal');
+        const qrContainer = document.getElementById('qrcode');
+        if(!qrContainer || !scanModal) return;
+        
+        qrContainer.innerHTML = "";
+        scanModal.style.display = "flex";
+        closeScanChoiceModal();
+        
+        try {
+            const res = await fetch(`${BASE_URL}/scan/generate-session`);
+            const data = await res.json();
+            
+            new QRCode(qrContainer, {
+                text: data.url,
+                width: 200,
+                height: 200,
+                colorDark : "#311038",
+                colorLight : "#ffffff",
+            });
+
+            const checkInterval = setInterval(async () => {
+                const check = await fetch(`${BASE_URL}/scan/check-session/${data.session_id}`);
+                const status = await check.json();
+                if (status.ready) {
+                    clearInterval(checkInterval);
+                    closeScanModal();
+                    loadScannedFileIntoPreview(status.filename);
+                }
+            }, 3000);
+        } catch (e) {
+            alert("Erreur de connexion au module de scan.");
+        }
+    }
+
+    async function loadScannedFileIntoPreview(filename) {
+    setBtnLoading(true, "Récupération du scan...");
+    try {
+        // On récupère le fichier PDF généré par le mobile
+        const response = await fetch(`${BASE_URL}/scan/get-result/${filename}`);
+        const blob = await response.blob();
+        
+        // On transforme le blob en objet File pour qu'il soit compatible avec ton système
+        const file = new File([blob], filename, { type: "application/pdf" });
+        
+        // On met à jour ta liste globale de fichiers
+        selectedFiles = [file];
+        
+        // On déclenche l'affichage de l'aperçu
+        handleFilesArrival();
+        
+    } catch (e) {
+        console.error("Erreur de récupération du scan:", e);
+        alert("Erreur lors du chargement du document scanné.");
+    } finally {
+        setBtnLoading(false);
+    }
+}
+
+    function closeScanModal() {
+        const modal = document.getElementById('scanModal');
+        if(modal) modal.style.display = 'none';
+    }
+
+    // --- CORE HANDLERS ---
+    function handleFilesArrival() {
+    renderFiles();
+    if (selectedFiles.length === 0) return;
+
+    const file = selectedFiles[0];
+    
+    // Détection automatique du besoin de modal selon la route
+    if (currentRoute.includes('remove') || currentRoute.includes('extract') || currentRoute.includes('reorder')) {
+        openToolModal('organize'); // Remplace openPagesModal
+    } 
+    else if (currentRoute === 'security/protect') {
+        openToolModal('protect'); // Remplace openProtectModal
+    }
+}
+        function renderFiles() {
+        const preview = document.getElementById('previewContainer');
+        const dropzone = document.getElementById('dropzone');
+        const btn = document.getElementById('downloadBtn');
+        const wrapper = document.querySelector('.pdf-wrapper');
+        const content = document.getElementById('dropzone-content');
+
+        if (selectedFiles.length > 0) {
+            btn.classList.add('visible');
+        } else {
+            btn.classList.remove('visible');
+            if(preview) preview.style.display = 'none';
+            if(dropzone) dropzone.style.display = 'flex';
+            if(content) content.style.display = 'block';
+            const grid = dropzone?.querySelector('.file-grid');
+            if (grid) grid.remove();
+            return;
+        }
+
+        if (selectedFiles.length === 1) {
+            const file = selectedFiles[0];
+            dropzone.style.display = 'none';
+            preview.style.display = 'block';
+            wrapper.innerHTML = ''; 
+
+            if (file.type === "application/pdf") {
+                wrapper.innerHTML = '<canvas id="pdfCanvas"></canvas>';
+                renderPDFPreview(file);
+            } else if (file.type.startsWith('image/')) {
+                const imgUrl = URL.createObjectURL(file);
+                wrapper.innerHTML = `<img src="${imgUrl}" style="max-width:95%; height:auto; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.1);">`;
+            } else {
+                wrapper.innerHTML = `<div style="text-align:center; padding-top:50px;"><i class="fa fa-file-alt" style="font-size:80px; color:var(--primary); opacity:0.2;"></i><p style="margin-top:20px; font-weight:600;">${file.name}</p></div>`;
+            }
+        } else {
+            preview.style.display = 'none';
+            dropzone.style.display = 'block';
+            if (content) content.style.display = 'none';
+            
+            let gridHTML = '<div class="file-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:15px; padding:20px; width:100%;">';
+            selectedFiles.forEach((file, index) => {
+                const isImg = file.type.startsWith('image/');
+                gridHTML += `<div class="pdf-card" style="background:#f9f9fb; padding:15px; border-radius:15px; text-align:center; position:relative; border:1px solid #eee;">
+                                <button class="remove-file" onclick="removeOneFile(${index}, event)" style="position:absolute; top:5px; right:5px; border:none; background:none; color:#ff4444; cursor:pointer;"><i class="fa fa-times"></i></button>
+                                <i class="fa ${isImg ? 'fa-image' : 'fa-file-pdf'}" style="font-size:2rem; color:${isImg ? '#3498db' : '#e74c3c'}"></i>
+                                <span style="display:block; font-size:0.7rem; margin-top:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${file.name}</span>
+                             </div>`;
+            });
+            gridHTML += '</div>';
+            
+            const existingGrid = dropzone.querySelector('.file-grid');
+            if (existingGrid) existingGrid.remove();
+            dropzone.insertAdjacentHTML('beforeend', gridHTML);
+        }
+    }
+    async function renderPDFPreview(file) {
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument(new Uint8Array(arrayBuffer)).promise;
+            const page = await pdf.getPage(1);
+            const canvas = document.getElementById('pdfCanvas');
+            if(!canvas) return;
+            const viewport = page.getViewport({scale: 1.0});
+            canvas.height = viewport.height; canvas.width = viewport.width;
+            await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+        } catch (e) { console.error("Erreur preview PDF:", e); }
+    }
+
+   // --- SUBMISSION LOGIC ---
+if (dlBtn) {
+    dlBtn.onclick = async () => {
+    if (selectedFiles.length === 0) return;
+
+    // --- INTERCEPTION POUR LES OUTILS INTERACTIFS ---
+    
+    if (currentRoute === 'edit/sign') {
+        openToolModal('sign'); // Ouvre le dessin au lieu de lancer le fetch
+        return;
+    }
+    
+    if (currentRoute === 'security/protect') {
+        openToolModal('protect');
+        return;
+    }
+
+    if (currentRoute === 'edit/unlock') {
+        openToolModal('unlock');
+        return;
+    }
+
+    // --- LOGIQUE GENERALE (Pour Merge, Compress, etc.) ---
+    setBtnLoading(true, "Traitement Umbrella...");
+    const formData = new FormData();
+
+        // 3. Gestion des fichiers
+        if (finalRoute.includes('html-to-pdf')) {
+            const file = selectedFiles[0];
+            const text = await file.text(); 
+            formData.append('html_content', text); 
+        } else {
+            // Liste des outils attendant un seul fichier sous la clé 'file'
+            const isSingle = [
+                'split', 'protect', 'unlock', 'repair', 'extract', 
+                'remove', 'reorder', 'pdf-to-jpg', 'compress', 
+                'ocr', 'pdf-to-word', 'pdf-to-excel', 'pdf-to-pptx', 'pdf-to-pdfa'
+            ].some(slug => finalRoute.includes(slug));
+
+            if (isSingle) {
+                formData.append('file', selectedFiles[0]);
+            } else {
+                // Pour le 'merge' ou autres outils multi-fichiers
+                selectedFiles.forEach(f => formData.append('files', f));
+            }
+        }
+
+        // 4. Paramètres d'options
+        if (currentRoute.includes('ocr')) {
+            const langEl = document.getElementById('ocrLanguage');
+            formData.append('language', langEl ? langEl.value : 'fra');
+        }
+
+        if (currentRoute.includes('compress')) {
+            const qualEl = document.getElementById('compressQuality');
+            formData.append('quality', qualEl ? qualEl.value : 'medium');
+        }
+
+        // 5. Gestion des pages
+        const toolsRequiringPages = ['remove', 'extract', 'reorder'];
+        if (toolsRequiringPages.some(tool => currentRoute.includes(tool))) {
+            let pagesValue = "";
+            
+            if (currentRoute.includes('reorder')) {
+                const items = document.querySelectorAll('.page-item-selector');
+                pagesValue = Array.from(items).map(el => el.getAttribute('data-page-index')).join(',');
+            } else {
+                if (selectedPages.size === 0) {
+                    alert("Veuillez sélectionner au moins une page dans l'aperçu.");
+                    setBtnLoading(false);
+                    return; 
+                }
+                pagesValue = Array.from(selectedPages).sort((a, b) => a - b).join(',');
+            }
+            formData.append('pages', pagesValue);
+        }
+
+        // 6. Envoi de la requête
+        if (currentRoute === 'security/protect') {
+    // Au lieu du prompt, on ouvre le modale SVG que tu as créé
+    setBtnLoading(false); // On arrête le loader car on attend l'utilisateur
+    openProtectModal(selectedFiles[0]);
+    return; // On arrête l'exécution ici, le fetch sera fait par confirmProtect()
+}
+        try {
+            const targetUrl = `${BASE_URL}/${finalRoute}`;
+            console.log("🚀 Tentative d'envoi vers :", targetUrl);
+
+            const response = await fetch(targetUrl, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+
+                // Détection de l'extension (plus robuste)
+                let ext = 'pdf';
+                const mime = blob.type.toLowerCase();
+
+                if (mime === "application/zip") {
+                    ext = 'zip';
+                } else if (mime.includes('word') || mime.includes('officedocument.wordprocessingml')) {
+                    ext = 'docx';
+                } else if (mime.includes('excel') || mime.includes('spreadsheet') || mime.includes('officedocument.spreadsheetml')) {
+                    ext = 'xlsx';
+                } else if (mime.includes('powerpoint') || mime.includes('presentationml')) {
+                    ext = 'pptx';
+                } else if (mime.includes('jpeg') || mime.includes('jpg')) {
+                    ext = 'jpg';
+                } else if (mime.includes('png')) {
+                    ext = 'png';
+                }
+
+                const timestamp = Date.now();
+                const fileName = `umbrella_${currentRoute.replace(/\//g, '_')}_${timestamp}.${ext}`;
+                
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                
+                window.URL.revokeObjectURL(url);
+                resetUpload(); // Nettoyage
+            } else {
+                // Gestion d'erreur propre si le serveur ne renvoie pas de JSON (ex: erreur 500 brute)
+                let errorMessage = "Le serveur a rejeté la demande.";
+                try {
+                    const errData = await response.json();
+                    errorMessage = errData.detail || errorMessage;
+                } catch (e) {
+                    console.error("Erreur lors du parsing JSON de l'erreur:", e);
+                }
+                alert(`Erreur (${response.status}): ${errorMessage}`);
+            }
+        } catch (e) {
+            console.error("❌ Erreur de connexion :", e);
+            alert("Impossible de joindre le serveur Umbrella (127.0.0.1:8000). Vérifiez que l'API est lancée.");
+        } finally {
+            setBtnLoading(false);
+        }
+    };
+}
+
+    function resetUpload() {
+        selectedFiles = [];
+        selectedPages.clear();
+        if(fileInput) fileInput.value = "";
+        renderFiles();
+        setBtnLoading(false);
+    }
+
+    // --- DRAG & DROP & CLIC ---
+    if(dropzone) {
+        dropzone.onclick = () => fileInput.click();
+        
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = 'var(--primary)';
+            dropzone.style.background = 'rgba(49, 16, 56, 0.05)';
+            dropzone.style.transform = 'scale(1.02)';
+        });
+
+        ['dragleave', 'dragend'].forEach(type => {
+            dropzone.addEventListener(type, () => {
+                dropzone.style.borderColor = '#eee';
+                dropzone.style.background = 'white';
+                dropzone.style.transform = 'scale(1)';
+            });
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = '#eee';
+            dropzone.style.background = 'white';
+            dropzone.style.transform = 'scale(1)';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                selectedFiles = Array.from(files);
+                handleFilesArrival();
+            }
+        });
+    }
+
+    if(fileInput) {
+        fileInput.onchange = (e) => {
+            selectedFiles = Array.from(e.target.files);
+            handleFilesArrival();
+        };
+    }
+
+    // --- MODAL UTILS ---
+    function closeModal() { 
+        const modal = document.getElementById('pagesModal');
+        if(modal) modal.style.display = 'none'; 
+    }
+    
+    const confirmBtn = document.getElementById('confirmRemoveBtn');
+    if(confirmBtn) {
+        confirmBtn.onclick = (e) => {
+            e.stopPropagation();
+            closeModal();
+            if(dlBtn) dlBtn.click();
+        };
+    }
+    // --- GESTION DE LA MODAL DES PAGES (REMOVE, EXTRACT, REORDER) ---
+
+async function openPagesModal(file) {
+    const modal = document.getElementById('pagesModal');
+    const grid = document.getElementById('pagesGrid');
+    if (!modal || !grid) return;
+
+    modal.style.display = 'flex';
+    grid.innerHTML = '<div style="padding:20px;">Chargement des pages...</div>';
+    selectedPages.clear();
+
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument(new Uint8Array(arrayBuffer)).promise;
+        grid.innerHTML = ''; // On vide le loader
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const container = document.createElement('div');
+            container.className = 'page-item-selector';
+            container.setAttribute('data-page-index', i);
+            
+            // Canevas pour la miniature
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const viewport = page.getViewport({ scale: 0.3 }); // Petite échelle pour la grille
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            container.innerHTML = `<span class="page-number">${i}</span>`;
+            container.appendChild(canvas);
+            grid.appendChild(container);
+
+            // Rendu de la page
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+            // Gestion du clic pour sélection (sauf pour REORDER qui utilise Sortable)
+            container.onclick = () => {
+                if (!currentRoute.includes('reorder')) {
+                    togglePageSelection(i, container);
+                }
+            };
+        }
+
+        // Activation du glisser-déposer si on est en mode REORDER
+        initSortable(grid);
+
+    } catch (e) {
+        console.error("Erreur chargement pages modal:", e);
+        grid.innerHTML = "Erreur lors du chargement du PDF.";
+    }
+}
+
+function togglePageSelection(pageIndex, element) {
+    if (selectedPages.has(pageIndex)) {
+        selectedPages.delete(pageIndex);
+        element.classList.remove('selected');
+    } else {
+        selectedPages.add(pageIndex);
+        element.classList.add('selected');
+    }
+}
+
+function initSortable(gridElement) {
+    // On détruit l'ancienne instance si elle existe
+    if (sortableInstance) {
+        sortableInstance.destroy();
+        sortableInstance = null;
+    }
+
+    // On active SortableJS seulement si on est en mode réorganisation
+    if (currentRoute.includes('reorder')) {
+        sortableInstance = new Sortable(gridElement, {
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            onEnd: () => {
+                console.log("Nouvel ordre défini");
+            }
+        });
+    }
+}
+
+// Ajoute cette fonction pour supprimer un fichier de la liste (utilisé dans renderFiles)
+function removeOneFile(index, event) {
+    if(event) event.stopPropagation();
+    selectedFiles.splice(index, 1);
+    renderFiles();
+}
+// Remplace ton ancienne fonction togglePageSelection par celle-ci
+function togglePageSelection(pageIndex, element) {
+    if (selectedPages.has(pageIndex)) {
+        selectedPages.delete(pageIndex);
+        element.classList.remove('selected');
+    } else {
+        selectedPages.add(pageIndex);
+        element.classList.add('selected');
+    }
+    
+    // Mise à jour du texte du compteur
+    const status = document.getElementById('selectionStatus');
+    if(status) {
+        status.innerText = `${selectedPages.size} page(s) sélectionnée(s)`;
+    }
+}
+function openProtectModal(file) {
+    currentProtectFile = file;
+    document.getElementById('passwordModal').style.display = 'flex';
+    document.getElementById('pdfPass1').value = '';
+    document.getElementById('pdfPass2').value = '';
+}
+
+function closeProtectModal() {
+    document.getElementById('passwordModal').style.display = 'none';
+    currentProtectFile = null;
+    if (typeof setBtnLoading === "function") setBtnLoading(false);
+}
+
+async function confirmProtect() {
+    const p1 = document.getElementById('pdfPass1')?.value;
+    const p2 = document.getElementById('pdfPass2')?.value;
+
+    // 1. Validation des entrées
+    if (!p1 || p1 !== p2) {
+        alert("Les mots de passe ne sont pas identiques ou sont vides.");
+        return;
+    }
+
+    // 2. Récupération du fichier (on prend le premier fichier sélectionné)
+    const file = selectedFiles[0]; 
+    if (!file) {
+        alert("Aucun fichier à protéger.");
+        return;
+    }
+
+    // 3. Fermeture du modal universel et lancement du loader
+    closeUniversalModal();
+    setBtnLoading(true, "Chiffrement Umbrella...");
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("password", p1);
+
+    try {
+        const response = await fetch(`${BASE_URL}/security/protect`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            // On traite le téléchargement du fichier protégé
+            await handleFetchResponse(response, 'security/protect');
+        } else {
+            const err = await response.json();
+            alert("Erreur : " + (err.detail || "Échec du chiffrement."));
+        }
+    } catch (e) {
+        console.error("Erreur protection:", e);
+        alert("Impossible de joindre le service de sécurité.");
+    } finally {
+        setBtnLoading(false);
+    }
+}
+
+/**
+ * Fonction utilitaire pour gérer le téléchargement du résultat
+ * (À placer dans ton code si tu ne l'as pas encore centralisée)
+ */
+async function handleFetchResponse(response, route) {
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    
+    const timestamp = Date.now();
+    const fileName = `umbrella_protected_${timestamp}.pdf`;
+    
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    
+    // Optionnel : Réinitialiser l'interface après succès
+    resetUpload();
+}
+function openToolModal(type) {
+    const modal = document.getElementById('universalModal');
+    const content = document.getElementById('universalModalContent');
+    const title = document.getElementById('modalTitle');
+    const desc = document.getElementById('modalDescription');
+    const body = document.getElementById('modalBody');
+    const icon = document.getElementById('modalIcon');
+    const footer = document.getElementById('modalFooter');
+    const actionBtn = document.getElementById('modalActionBtn');
+
+    if (!modal || !body) return;
+
+    // --- 1. Réinitialisation complète ---
+    body.innerHTML = '';
+    icon.innerHTML = '';
+    desc.innerText = '';
+    footer.style.display = 'none';
+    content.style.maxWidth = '420px'; // Taille par défaut
+    actionBtn.onclick = null; // Nettoyage vital pour éviter les doubles déclenchements
+
+    // --- 2. Configuration par type ---
+    
+    // PROTECT
+    if (type === 'protect') {
+        title.innerText = "Protéger le document";
+        desc.innerText = "Définissez un mot de passe pour sécuriser ce PDF.";
+        icon.innerHTML = `<svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`;
+        body.innerHTML = `
+            <div style="text-align:left; margin-bottom:15px;">
+                <label style="font-size:11px; font-weight:800; color:var(--primary); text-transform:uppercase;">Mot de passe</label>
+                <input type="password" id="pdfPass1" class="style-input" style="width:100%; padding:14px; background:#f8f8fc; border-radius:15px; border:1px solid #eee; outline:none;">
+            </div>
+            <div style="text-align:left;">
+                <label style="font-size:11px; font-weight:800; color:var(--primary); text-transform:uppercase;">Confirmation</label>
+                <input type="password" id="pdfPass2" class="style-input" style="width:100%; padding:14px; background:#f8f8fc; border-radius:15px; border:1px solid #eee; outline:none;">
+            </div>`;
+        footer.style.display = 'block';
+        actionBtn.innerText = "Appliquer la protection";
+        actionBtn.onclick = confirmProtect;
+    } 
+    
+    // ORGANIZE
+    else if (type === 'organize') {
+        if (!selectedFiles || selectedFiles.length === 0) {
+            alert("Veuillez d'abord sélectionner un fichier.");
+            return;
+        }
+        content.style.maxWidth = '1100px';
+        title.innerText = "Organiser les pages";
+        desc.innerText = "Glissez pour réorganiser ou cliquez pour sélectionner.";
+        body.innerHTML = `
+            <div id="selectionStatus" style="margin-bottom:10px; font-weight:bold; color:var(--primary);">0 page(s) sélectionnée(s)</div>
+            <div id="pagesGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:20px; max-height:60vh; overflow-y:auto; padding:10px; background:#f8f8fc; border-radius:20px;"></div>`;
+        footer.style.display = 'block';
+        actionBtn.innerText = "Confirmer la sélection";
+        actionBtn.onclick = () => { closeUniversalModal(); dlBtn.click(); };
+        
+        renderPagesIntoUniversalGrid(selectedFiles[0]); 
+    }
+
+    // OCR
+    else if (type === 'ocr') {
+        title.innerText = "Reconnaissance de texte (OCR)";
+        desc.innerText = "Choisissez la langue pour une détection optimale.";
+        body.innerHTML = `
+            <select id="ocrLanguage" class="style-select" style="width:100%; padding:15px; border-radius:15px; border:1px solid #eee;">
+                <option value="fra">Français</option>
+                <option value="eng">Anglais</option>
+            </select>`;
+        footer.style.display = 'block';
+        actionBtn.innerText = "Lancer la lecture";
+        actionBtn.onclick = () => { closeUniversalModal(); dlBtn.click(); };
+    }
+
+    // UNLOCK
+    else if (type === 'unlock') {
+        title.innerText = "Déverrouiller le document";
+        desc.innerText = "Entrez le mot de passe actuel pour supprimer les restrictions.";
+        icon.innerHTML = `<svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="#f1c40f" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`;
+        body.innerHTML = `
+            <div style="text-align:left;">
+                <label style="font-size:11px; font-weight:800; color:var(--primary); text-transform:uppercase;">Mot de passe du PDF</label>
+                <input type="password" id="unlockPass" class="style-input" placeholder="Entrez le mot de passe" style="width:100%; padding:14px; background:#f8f8fc; border-radius:15px; border:1px solid #eee; outline:none;">
+            </div>`;
+        footer.style.display = 'block';
+        actionBtn.innerText = "Supprimer le mot de passe";
+        actionBtn.onclick = confirmUnlock;
+    }
+
+    // SCAN
+    else if (type === 'scan') {
+        title.innerText = "Numérisation Umbrella";
+        desc.innerText = "Scannez le QR Code avec votre téléphone.";
+        icon.innerHTML = `<img src="https://oysdycuouodarfkmdtop.supabase.co/storage/v1/object/public/LOGO/Moniteo.png" style="height:35px; margin-bottom:10px;">`;
+        body.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 20px;">
+                <div id="qrcode" style="padding: 15px; background: #f8f8fc; border-radius: 20px; border: 1px solid #eee; min-height: 200px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fa fa-circle-notch fa-spin" style="color: var(--primary); font-size: 24px;"></i>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--primary); font-weight: 600;">
+                    <i class="fa fa-sync fa-spin"></i> En attente du document...
+                </div>
+            </div>`;
+        footer.style.display = 'none';
+        generateScanQRCode();
+    }
+
+    // SIGN
+    else if (type === 'sign') {
+        title.innerText = "Signer le document";
+        desc.innerText = "Dessinez votre signature ci-dessous.";
+        body.innerHTML = `
+            <div style="background: #f8f8fc; border: 2px dashed #ccc; border-radius: 15px; position: relative; cursor: crosshair;">
+                <canvas id="signaturePad" width="380" height="200" style="touch-action: none; width: 100%;"></canvas>
+                <button onclick="clearSignature()" style="position: absolute; top: 10px; right: 10px; background: none; border: none; color: #999; cursor: pointer;">
+                    <i class="fa fa-eraser"></i> Effacer
+                </button>
+            </div>
+            <div style="margin-top: 15px; display: flex; gap: 10px;">
+                <button onclick="importSignatureImage()" class="btn-secondary" style="font-size: 11px; padding: 8px 12px;">
+                    <i class="fa fa-image"></i> Importer image
+                </button>
+            </div>`;
+        footer.style.display = 'block';
+        actionBtn.innerText = "Appliquer la signature";
+        actionBtn.onclick = confirmSignature;
+        setTimeout(initSignaturePad, 100);
+    }
+
+    // --- 3. Affichage final ---
+    modal.style.display = 'flex';
+}
+function closeUniversalModal() {
+    const modal = document.getElementById('universalModal');
+    if (modal) {
+        modal.style.display = 'none';
+        
+        // Optionnel : Arrêter le tracé de signature si on ferme
+        isDrawing = false; 
+        
+        // Optionnel : Nettoyer le body pour libérer de la mémoire
+        document.getElementById('modalBody').innerHTML = '';
+    }
+}
+async function renderPagesIntoUniversalGrid(file) {
+    const grid = document.getElementById('pagesGrid');
+    if (!grid) return;
+
+    selectedPages.clear();
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument(new Uint8Array(arrayBuffer)).promise;
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const container = document.createElement('div');
+            container.className = 'page-item-selector';
+            container.setAttribute('data-page-index', i);
+            
+            const canvas = document.createElement('canvas');
+            const viewport = page.getViewport({ scale: 0.3 });
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            container.innerHTML = `<span class="page-number">${i}</span>`;
+            container.appendChild(canvas);
+            grid.appendChild(container);
+
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+            container.onclick = () => {
+                if (!currentRoute.includes('reorder')) {
+                    togglePageSelection(i, container);
+                }
+            };
+        }
+        initSortable(grid); // Active le drag & drop si mode reorder
+    } catch (e) {
+        grid.innerHTML = "Erreur de chargement PDF.";
+    }
+}
+async function generateScanQRCode() {
+    const qrContainer = document.getElementById('qrcode');
+    if (!qrContainer) return;
+
+    try {
+        // 1. Demande d'une nouvelle session au backend
+        const res = await fetch(`${BASE_URL}/scan/generate-session`);
+        const data = await res.json();
+
+        qrContainer.innerHTML = ""; // On retire le loader (l'icône de chargement)
+        
+        // 2. Génération du QR Code dans le conteneur injecté par le modal
+        new QRCode(qrContainer, {
+            text: data.url,
+            width: 200,
+            height: 200,
+            colorDark: "#311038",
+            colorLight: "#ffffff",
+        });
+
+        // 3. Polling : On vérifie si le fichier est prêt
+        const checkInterval = setInterval(async () => {
+            // Sécurité : si le modal est fermé, on arrête de demander au serveur
+            const modal = document.getElementById('universalModal');
+            if (!modal || modal.style.display === 'none') {
+                clearInterval(checkInterval);
+                return;
+            }
+
+            try {
+                const check = await fetch(`${BASE_URL}/scan/check-session/${data.session_id}`);
+                const status = await check.json();
+                
+                if (status.ready) {
+                    clearInterval(checkInterval);
+                    closeUniversalModal(); // Ferme le modal automatiquement
+                    loadScannedFileIntoPreview(status.filename); // Charge l'aperçu
+                }
+            } catch (err) {
+                console.error("Erreur lors du check de session:", err);
+            }
+        }, 3000);
+
+    } catch (e) {
+        console.error("Erreur QR Generation:", e);
+        qrContainer.innerHTML = "<p style='color:red; font-size:0.8rem; text-align:center;'>Erreur de connexion au serveur de scan.</p>";
+    }
+}
+async function confirmUnlock() {
+    const pass = document.getElementById('unlockPass')?.value;
+
+    if (!pass) {
+        alert("Veuillez saisir le mot de passe du fichier.");
+        return;
+    }
+
+    if (!selectedFiles || selectedFiles.length === 0) {
+        alert("Aucun fichier sélectionné.");
+        return;
+    }
+
+    closeUniversalModal();
+    setBtnLoading(true, "Déverrouillage Umbrella...");
+
+    const formData = new FormData();
+    formData.append("file", selectedFiles[0]);
+    formData.append("password", pass);
+
+    try {
+        const response = await fetch(`${BASE_URL}/edit/unlock`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            // On télécharge le PDF déverrouillé
+            await handleFetchResponse(response, 'edit/unlock');
+        } else {
+            const err = await response.json();
+            alert("Erreur : " + (err.detail || "Mot de passe incorrect ou fichier invalide."));
+        }
+    } catch (e) {
+        console.error("Erreur Unlock:", e);
+        alert("Impossible de joindre le serveur.");
+    } finally {
+        setBtnLoading(false);
+    }
+}
+function initSignaturePad() {
+    sigCanvas = document.getElementById('signaturePad');
+    if (!sigCanvas) return;
+    sigCtx = sigCanvas.getContext('2d');
+    sigCtx.strokeStyle = "#311038"; // Couleur Umbrella
+    sigCtx.lineWidth = 2;
+    sigCtx.lineCap = "round";
+
+    const getPos = (e) => {
+        const rect = sigCanvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    };
+
+    const start = (e) => { isDrawing = true; sigCtx.beginPath(); const p = getPos(e); sigCtx.moveTo(p.x, p.y); };
+    const draw = (e) => { if (!isDrawing) return; const p = getPos(e); sigCtx.lineTo(p.x, p.y); sigCtx.stroke(); };
+    const stop = () => { isDrawing = false; };
+
+    sigCanvas.addEventListener('mousedown', start);
+    sigCanvas.addEventListener('mousemove', draw);
+    window.addEventListener('mouseup', stop);
+    
+    sigCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); start(e); });
+    sigCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
+    sigCanvas.addEventListener('touchend', stop);
+}
+
+function clearSignature() {
+    sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+}
+async function confirmSignature() {
+    // 1. On vérifie le modal et le canvas
+    const canvas = document.getElementById('signaturePad');
+    if (!canvas) return;
+
+    // 2. On ferme le modal (Utilise la fonction ajoutée ci-dessus)
+    closeUniversalModal();
+
+    // 3. Suite de la logique (Conversion Base64 et Fetch)
+    const dataURL = canvas.toDataURL('image/png');
+    
+    if (!selectedFiles || selectedFiles.length === 0) {
+        alert("Aucun fichier sélectionné.");
+        return;
+    }
+
+    setBtnLoading(true, "Application de la signature...");
+
+    const formData = new FormData();
+    formData.append("file", selectedFiles[0]);
+    formData.append("signature_base64", dataURL);
+
+    try {
+        const response = await fetch(`${BASE_URL}/edit/sign`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            await handleFetchResponse(response, 'edit/sign');
+        } else {
+            alert("Erreur lors de la signature.");
+        }
+    } catch (e) {
+        console.error("Erreur Sign:", e);
+    } finally {
+        setBtnLoading(false);
+    }
+}
+</script>
+</body>
+</html>

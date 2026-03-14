@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: umbrella-engine
+    env: docker # TRÈS IMPORTANT : On dit à Render d'utiliser Docker
+    plan: starter # LibreOffice a besoin de RAM, le plan "free" risque d'être juste
+    region: ohio # Ou ta région préférée
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: PYTHONUNBUFFERED
+        value: "1"
