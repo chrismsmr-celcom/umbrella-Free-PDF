@@ -5,7 +5,7 @@ FROM python:3.10-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Installer les dépendances système (Version complète pour toutes les fonctions d'Umbrella)
+# Installer les dépendances système (Version corrigée pour Debian Trixie)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer \
     libreoffice-calc \
@@ -19,7 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-tk \
     libgl1 \
     default-jre \
-    wkhtmltopdf \
+    libpango-1.0-0 \
+    libharfbuzz0b \
+    libpangoft2-1.0-0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
