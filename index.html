@@ -756,8 +756,8 @@ const routeMapping = {
     'edit/pdf-to-pdfa': 'edit/pdf-to-pdfa',
     
     // --- SCAN ---
-    'scan/process': 'scan/process' // ✅ Pour la finalisation du flux mobile
-};    // --- ELEMENTS DU DOM ---
+    'scan/process': 'scan/get-result' // C'est plus logique si tu veux "récupérer" le scan};    
+   // --- ELEMENTS DU DOM ---
     const dropzone = document.getElementById('dropzone');
     const fileInput = document.getElementById('fileInput');
     const searchInput = document.getElementById('toolSearch');
