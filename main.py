@@ -1,24 +1,33 @@
+import os
+import io
+import uuid
+import shutil
+import tempfile
+import mimetypes
+from typing import List
+
+# FastAPI & Responses
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Request
 from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from typing import List
-from utils.security import protect_pdf
-import tempfile, os, shutil, uuid
-from PIL import Image
-from fastapi import Form
-import io
-import mimetypes
-import uuid
-from fastapi import HTTPException
-from fastapi import UploadFile, File, Form
-from fastapi.responses import StreamingResponse
-from utils.sign_utils import process_pdf_signature # Ton nouvel utilitaire
 
-# Import des modules locaux
+# Traitement d'images
+from PIL import Image
+
+# --- UTILS UMBRELLA ---
 from utils.core import cleanup, create_zip_on_disk
-# Ligne 15 corrigée
-from utils.office import convert_to_pdf, pdf_to_word, pdf_to_excel, pdf_to_pptx, pdf_to_pdfa
+from utils.security import protect_pdf
+from utils.sign_utils import process_pdf_signature
+
+# Conversion & Office
+from utils.office import (
+    convert_to_pdf, pdf_to_word, pdf_to_excel, 
+    pdf_to_pptx, pdf_to_pdfa
+)
+from utils.html_to_pdf import handle_html_to_pdf
+
+# Manipulation PDF
 from utils.images import images_to_pdf, pdf_to_images
 from utils.organize import handle_extract, handle_remove, handle_reorder
 from utils.merge import handle_merge
@@ -28,7 +37,6 @@ from utils.watermark import apply_watermark
 from utils.repair import handle_repair
 from utils.ocr import handle_ocr
 from utils.compress import handle_compress
-from utils.html_to_pdf import handle_html_to_pdf
 
 app = FastAPI(title="Umbrella PDF Engine PRO")
 
@@ -39,7 +47,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- CONFIGURATION ---
 scan_sessions = {}
+STORAGE_DIR = os.path.join(tempfile.gettempdir(), "umbrella_scans")
+os.makedirs(STORAGE_DIR, exist_ok=True)
 
 # --- LOGIQUE GÉNÉRIQUE BATCH ---
 
@@ -192,16 +203,26 @@ async def remove_endpoint(background_tasks: BackgroundTasks, file: UploadFile = 
 async def generate_scan_session(request: Request):
     session_id = uuid.uuid4().hex[:8]
     scan_sessions[session_id] = None
-    host_url = f"{request.url.scheme}://{request.url.netloc}"
-    return {"session_id": session_id, "url": f"{host_url}/mobile-scan?s={session_id}"}
+    
+    # Utilisation d'une URL absolue pour éviter les soucis de proxy sur Render
+    host_url = str(request.base_url).rstrip('/')
+    return {
+        "session_id": session_id, 
+        "url": f"{host_url}/mobile-scan?s={session_id}"
+    }
 
 @app.get("/mobile-scan", response_class=HTMLResponse)
-async def serve_mobile_scan_page(s: str):
+async def serve_mobile_scan_page(request: Request, s: str = None):
+    """Sert la page de capture mobile en injectant l'ID de session."""
+    if not s or (s not in scan_sessions and s != "test"): # "test" pour le debug
+         return "<h1>Session invalide ou expirée</h1>", 403
+
     if os.path.exists("mobile_scan.html"):
         with open("mobile_scan.html", "r", encoding="utf-8") as f:
-            return f.read()
-    return "<h1>Erreur : Fichier mobile_scan.html introuvable</h1>"
-
+            content = f.read()
+            # On peut injecter le session_id directement dans le JS si besoin
+            return content
+    return "<h1>Erreur : Interface mobile introuvable</h1>", 404
 
 @app.post("/scan/upload-mobile/{session_id}")
 async def upload_from_mobile(
@@ -209,41 +230,39 @@ async def upload_from_mobile(
     file: UploadFile = File(...), 
     mode: str = Form("color")
 ):
-    # On utilise un dictionnaire global ou une DB pour scan_sessions
+    # 1. Vérification de la session
     if session_id not in scan_sessions:
-        raise HTTPException(404, "Session expirée ou invalide")
-    
-    # Utilisation du dossier /tmp standard de Render
-    storage_dir = os.path.join(tempfile.gettempdir(), "umbrella_scans")
-    os.makedirs(storage_dir, exist_ok=True)
-    
-    # Nom de fichier unique pour éviter les collisions
-    file_id = uuid.uuid4().hex[:6]
-    in_p = os.path.join(storage_dir, f"{file_id}_{file.filename}")
-    
+        print(f"❌ Session {session_id} non trouvée dans {scan_sessions.keys()}")
+        raise HTTPException(status_code=404, detail="Session expirée")
+
     try:
-        # Écriture sécurisée du fichier
-        content = await file.read()
-        with open(in_p, "wb") as f:
-            f.write(content)
-            
-        # Traitement
-        scanned_pdf = handle_scan_effect(in_p, storage_dir, mode=mode)
-        
-        if scanned_pdf:
+        # 2. Sécurisation du nom de fichier
+        file_id = uuid.uuid4().hex[:6]
+        ext = os.path.splitext(file.filename)[1]
+        temp_img_path = os.path.join(STORAGE_DIR, f"{file_id}{ext}")
+
+        # 3. Sauvegarde de l'image reçue
+        with open(temp_img_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # 4. Traitement via ton utilitaire Pillow
+        scanned_pdf = handle_scan_effect(temp_img_path, STORAGE_DIR, mode=mode)
+
+        if scanned_pdf and os.path.exists(scanned_pdf):
             scan_sessions[session_id] = scanned_pdf
-            # On supprime l'image source originale pour gagner de la place
-            if os.path.exists(in_p): os.remove(in_p)
-            return {"status": "success"}
-        else:
-            raise Exception("Le traitement du scan a échoué.")
-            
-    except Exception as e:
-        print(f"❌ Erreur Upload Mobile: {e}")
-        raise HTTPException(500, detail="Erreur lors de la réception du scan.")
+            # Nettoyage de l'image source
+            if os.path.exists(temp_img_path): os.remove(temp_img_path)
+            return {"status": "success", "message": "Document traité"}
         
+        raise Exception("Échec handle_scan_effect")
+
+    except Exception as e:
+        print(f"❌ Erreur Process Scan: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur lors du traitement de l'image")
+
 @app.get("/scan/check-session/{session_id}")
 async def check_session(session_id: str):
+    # On renvoie l'état pour que le PC sache quand le mobile a fini
     file_path = scan_sessions.get(session_id)
     if file_path and os.path.exists(file_path):
         return {"ready": True, "filename": os.path.basename(file_path)}
@@ -251,17 +270,20 @@ async def check_session(session_id: str):
 
 @app.get("/scan/get-result/{filename}")
 async def get_scan_result(filename: str, background_tasks: BackgroundTasks):
-    # Sécurité : on empêche de sortir du dossier temp
+    # Sécurité anti-path-traversal
     safe_filename = os.path.basename(filename)
-    file_path = os.path.join(tempfile.gettempdir(), "umbrella_scans", safe_filename)
-    
+    file_path = os.path.join(STORAGE_DIR, safe_filename)
+
     if os.path.exists(file_path):
-        # On nettoie le fichier après l'envoi (important !)
-        # Attention: pour le scan mobile, on ne supprime pas tout le dossier, juste le fichier
+        # On définit le cleanup en tâche de fond après le téléchargement
         background_tasks.add_task(os.remove, file_path)
-        return FileResponse(file_path, media_type="application/pdf", filename="scanned_document.pdf")
-    
-    raise HTTPException(404, "Le document a expiré ou est introuvable.")
+        return FileResponse(
+            file_path, 
+            media_type="application/pdf", 
+            filename="umbrella_scan.pdf"
+        )
+
+    raise HTTPException(status_code=404, detail="Fichier introuvable")
 
 # --- ÉDITION & RÉPARATION ---
 
