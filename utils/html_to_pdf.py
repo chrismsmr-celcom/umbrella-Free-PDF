@@ -2,36 +2,35 @@ import os
 from weasyprint import HTML, CSS
 
 def handle_html_to_pdf(input_data, output_dir):
-    """
-    Convertit du contenu HTML ou un fichier HTML en PDF via WeasyPrint.
-    Plus besoin de configuration de binaire externe (wkhtmltopdf).
-    """
     try:
         output_path = os.path.join(output_dir, "umbrella_converted_html.pdf")
 
-        # Configuration des marges et du format via CSS (plus propre)
+        # Configuration du style pour forcer le format A4 et marges à zéro comme dans tes options précédentes
         base_url = os.path.dirname(input_data) if os.path.exists(input_data) else None
         
-        # Styles par défaut pour simuler tes anciennes options
-        stylesheets = [CSS(string="@page { size: A4; margin: 0mm; }")]
+        # Style CSS pour simuler tes anciennes options
+        styles = """
+            @page {
+                size: A4;
+                margin: 0mm;
+            }
+        """
 
+        # Si input_data est un chemin de fichier existant
         if isinstance(input_data, str) and os.path.exists(input_data):
-            # Conversion depuis un fichier local
             HTML(filename=input_data, base_url=base_url).write_pdf(
                 output_path, 
-                stylesheets=stylesheets
+                stylesheets=[CSS(string=styles)]
             )
         else:
-            # Conversion depuis une string HTML brute
+            # Si c'est du contenu HTML brut (string)
             HTML(string=input_data).write_pdf(
                 output_path, 
-                stylesheets=stylesheets
+                stylesheets=[CSS(string=styles)]
             )
 
-        if os.path.exists(output_path):
-            return output_path
-        return None
+        return output_path
 
     except Exception as e:
-        print(f"❌ Erreur critique HTML_TO_PDF (WeasyPrint) : {e}")
+        print(f"❌ Erreur WeasyPrint HTML_TO_PDF : {e}")
         return None
