@@ -873,60 +873,34 @@ function toggleMenu() {
 if (menuToggle) menuToggle.onclick = toggleMenu;
 if (overlay) overlay.onclick = toggleMenu;
 
-    async function triggerMobileScan() {
-        const scanModal = document.getElementById('scanModal');
-        const qrContainer = document.getElementById('qrcode');
-        if(!qrContainer || !scanModal) return;
-        
-        qrContainer.innerHTML = "";
-        scanModal.style.display = "flex";
-        closeScanChoiceModal();
-        
-        try {
-            const res = await fetch(`${BASE_URL}/scan/generate-session`);
-            const data = await res.json();
-            
-            new QRCode(qrContainer, {
-                text: data.url,
-                width: 200,
-                height: 200,
-                colorDark : "#311038",
-                colorLight : "#ffffff",
-            });
-
-            const checkInterval = setInterval(async () => {
-                const check = await fetch(`${BASE_URL}/scan/check-session/${data.session_id}`);
-                const status = await check.json();
-                if (status.ready) {
-                    clearInterval(checkInterval);
-                    closeScanModal();
-                    loadScannedFileIntoPreview(status.filename);
-                }
-            }, 3000);
-        } catch (e) {
-            alert("Erreur de connexion au module de scan.");
-        }
-    }
-
-    async function loadScannedFileIntoPreview(filename) {
+  
+async function loadScannedFileIntoPreview(filename) {
+    // 1. Afficher un état de chargement sur l'UI principale
     setBtnLoading(true, "Récupération du scan...");
+    
     try {
-        // On récupère le fichier PDF généré par le mobile
+        // 2. Récupération du Blob depuis le backend
         const response = await fetch(`${BASE_URL}/scan/get-result/${filename}`);
+        if (!response.ok) throw new Error("Fichier introuvable sur le serveur");
+        
         const blob = await response.blob();
         
-        // On transforme le blob en objet File pour qu'il soit compatible avec ton système
-        const file = new File([blob], filename, { type: "application/pdf" });
+        // 3. Conversion en objet File (indispensable pour ton moteur de preview)
+        // On utilise un nom propre pour l'affichage
+        const file = new File([blob], `scan_umbrella_${Date.now()}.pdf`, { type: "application/pdf" });
         
-        // On met à jour ta liste globale de fichiers
+        // 4. Injection dans la liste globale
+        // On remplace ou on ajoute selon ton souhait (ici on remplace pour éviter les conflits)
         selectedFiles = [file];
         
-        // On déclenche l'affichage de l'aperçu
-        handleFilesArrival();
+        // 5. Mise à jour de l'affichage (ton moteur habituel)
+        renderFiles(); 
+        handleFilesArrival(); 
         
+        console.log("✅ Scan récupéré et injecté avec succès");
     } catch (e) {
-        console.error("Erreur de récupération du scan:", e);
-        alert("Erreur lors du chargement du document scanné.");
+        console.error("❌ Erreur de récupération:", e);
+        alert("Le lien de téléchargement a expiré ou le fichier est corrompu.");
     } finally {
         setBtnLoading(false);
     }
@@ -938,18 +912,21 @@ if (overlay) overlay.onclick = toggleMenu;
     }
 
     // --- CORE HANDLERS ---
-    function handleFilesArrival() {
+   function handleFilesArrival() {
     renderFiles();
     if (selectedFiles.length === 0) return;
 
-    const file = selectedFiles[0];
+    // Si on vient de scanner, currentRoute est peut-être 'scan'
+    // Il faut s'assurer que l'aperçu s'affiche quand même.
+    if (currentRoute === 'scan/process' || currentRoute === 'scan') {
+        // Optionnel : rediriger vers une route par défaut comme 'organize/merge' 
+        // pour permettre des actions sur le fichier scanné
+        console.log("Fichier scanné prêt pour édition");
+    }
     
-    // Détection automatique du besoin de modal selon la route
-    if (currentRoute.includes('remove') || currentRoute.includes('extract') || currentRoute.includes('reorder')) {
-        openToolModal('organize'); // Remplace openPagesModal
-    } 
-    else if (currentRoute === 'security/protect') {
-        openToolModal('protect'); // Remplace openProtectModal
+    // Ton code existant pour les outils spécifiques
+    if (['remove', 'extract', 'reorder'].some(r => currentRoute.includes(r))) {
+        openToolModal('organize');
     }
 }
         function renderFiles() {
@@ -1607,24 +1584,22 @@ async function generateScanQRCode() {
     if (!qrContainer) return;
 
     try {
-        // 1. Demande d'une nouvelle session au backend
         const res = await fetch(`${BASE_URL}/scan/generate-session`);
         const data = await res.json();
 
-        qrContainer.innerHTML = ""; // On retire le loader (l'icône de chargement)
+        qrContainer.innerHTML = "";
         
-        // 2. Génération du QR Code dans le conteneur injecté par le modal
         new QRCode(qrContainer, {
             text: data.url,
             width: 200,
             height: 200,
-            colorDark: "#311038",
+            colorDark: "#311038", // Couleur identité Makem Group
             colorLight: "#ffffff",
         });
 
-        // 3. Polling : On vérifie si le fichier est prêt
+        // Utilisation d'une variable pour pouvoir stopper proprement
         const checkInterval = setInterval(async () => {
-            // Sécurité : si le modal est fermé, on arrête de demander au serveur
+            // VERIFICATION : Est-ce que le modal est toujours ouvert ?
             const modal = document.getElementById('universalModal');
             if (!modal || modal.style.display === 'none') {
                 clearInterval(checkInterval);
@@ -1637,17 +1612,21 @@ async function generateScanQRCode() {
                 
                 if (status.ready) {
                     clearInterval(checkInterval);
-                    closeUniversalModal(); // Ferme le modal automatiquement
-                    loadScannedFileIntoPreview(status.filename); // Charge l'aperçu
+                    closeUniversalModal(); // Ta fonction de fermeture globale
+                    
+                    // On attend un tout petit peu pour laisser le modal se fermer visuellement
+                    setTimeout(() => {
+                        loadScannedFileIntoPreview(status.filename);
+                    }, 300);
                 }
             } catch (err) {
-                console.error("Erreur lors du check de session:", err);
+                // On ne stop pas au premier pet de serveur, on laisse le polling continuer
+                console.warn("Polling en cours...");
             }
         }, 3000);
 
     } catch (e) {
-        console.error("Erreur QR Generation:", e);
-        qrContainer.innerHTML = "<p style='color:red; font-size:0.8rem; text-align:center;'>Erreur de connexion au serveur de scan.</p>";
+        qrContainer.innerHTML = "<p style='color:red;'>Erreur serveur.</p>";
     }
 }
 async function confirmUnlock() {
