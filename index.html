@@ -757,7 +757,8 @@ const routeMapping = {
     
     // --- SCAN ---
     'scan/process': 'scan/get-result' // C'est plus logique si tu veux "récupérer" le scan};    
-   // --- ELEMENTS DU DOM ---
+   };
+    // --- ELEMENTS DU DOM ---
     const dropzone = document.getElementById('dropzone');
     const fileInput = document.getElementById('fileInput');
     const searchInput = document.getElementById('toolSearch');
@@ -1081,22 +1082,49 @@ if (dlBtn) {
             }
 
             // 5. Gestion des pages
-            const toolsRequiringPages = ['remove', 'extract', 'reorder'];
-            if (toolsRequiringPages.some(tool => currentRoute.includes(tool))) {
-                let pagesValue = "";
-                if (currentRoute.includes('reorder')) {
-                    const items = document.querySelectorAll('.page-item-selector');
-                    pagesValue = Array.from(items).map(el => el.getAttribute('data-page-index')).join(',');
-                } else {
-                    if (selectedPages.size === 0) {
-                        alert("Veuillez sélectionner au moins une page.");
-                        setBtnLoading(false);
-                        return; 
-                    }
-                    pagesValue = Array.from(selectedPages).sort((a, b) => a - b).join(',');
-                }
-                formData.append('pages', pagesValue);
-            }
+           const toolsRequiringPages = ['remove', 'extract', 'reorder'];
+
+if (toolsRequiringPages.some(tool => currentRoute.includes(tool))) {
+    let pagesValue = "";
+
+    if (currentRoute.includes('reorder')) {
+        // On récupère l'ordre via les vignettes de l'aperçu
+        const items = document.querySelectorAll('.page-item-selector');
+        
+        if (items.length > 0) {
+            pagesValue = Array.from(items)
+                .map(el => el.getAttribute('data-page-index'))
+                .filter(val => val !== null) // Sécurité : évite les valeurs nulles
+                .join(',');
+        } else {
+            // Sécurité : si l'utilisateur n'a pas touché à l'ordre ou si l'aperçu bug, 
+            // on ne peut pas envoyer une chaîne vide (422). On annule.
+            alert("L'aperçu des pages n'est pas prêt. Veuillez patienter ou déplacer une page.");
+            setBtnLoading(false);
+            return;
+        }
+    } else {
+        // Mode Remove ou Extract
+        if (!selectedPages || selectedPages.size === 0) {
+            alert("Veuillez sélectionner au moins une page sur le document.");
+            setBtnLoading(false);
+            return; 
+        }
+        // On trie numériquement pour éviter les erreurs d'index
+        pagesValue = Array.from(selectedPages)
+            .sort((a, b) => a - b)
+            .join(',');
+    }
+
+    // On vérifie une dernière fois que pagesValue n'est pas une chaîne vide
+    if (!pagesValue || pagesValue.trim() === "") {
+        alert("Erreur : Aucune page détectée pour cette opération.");
+        setBtnLoading(false);
+        return;
+    }
+
+    formData.append('pages', pagesValue);
+}
 
             // 6. Envoi de la requête
             const targetUrl = `${BASE_URL}/${finalRoute}`;
