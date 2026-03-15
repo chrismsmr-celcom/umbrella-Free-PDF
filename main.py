@@ -202,27 +202,46 @@ async def serve_mobile_scan_page(s: str):
             return f.read()
     return "<h1>Erreur : Fichier mobile_scan.html introuvable</h1>"
 
+
 @app.post("/scan/upload-mobile/{session_id}")
 async def upload_from_mobile(
     session_id: str, 
     file: UploadFile = File(...), 
-    mode: str = Form("color") # On récupère le choix ici
+    mode: str = Form("color")
 ):
+    # On utilise un dictionnaire global ou une DB pour scan_sessions
     if session_id not in scan_sessions:
-        raise HTTPException(404, "Session invalide")
+        raise HTTPException(404, "Session expirée ou invalide")
     
+    # Utilisation du dossier /tmp standard de Render
     storage_dir = os.path.join(tempfile.gettempdir(), "umbrella_scans")
     os.makedirs(storage_dir, exist_ok=True)
     
-    in_p = os.path.join(storage_dir, f"{uuid.uuid4().hex}_{file.filename}")
-    with open(in_p, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    # Nom de fichier unique pour éviter les collisions
+    file_id = uuid.uuid4().hex[:6]
+    in_p = os.path.join(storage_dir, f"{file_id}_{file.filename}")
+    
+    try:
+        # Écriture sécurisée du fichier
+        content = await file.read()
+        with open(in_p, "wb") as f:
+            f.write(content)
+            
+        # Traitement
+        scanned_pdf = handle_scan_effect(in_p, storage_dir, mode=mode)
         
-    # On passe le mode à la fonction de traitement
-    scanned_pdf = handle_scan_effect(in_p, storage_dir, mode=mode)
-    scan_sessions[session_id] = scanned_pdf
-    return {"status": "success"}
-
+        if scanned_pdf:
+            scan_sessions[session_id] = scanned_pdf
+            # On supprime l'image source originale pour gagner de la place
+            if os.path.exists(in_p): os.remove(in_p)
+            return {"status": "success"}
+        else:
+            raise Exception("Le traitement du scan a échoué.")
+            
+    except Exception as e:
+        print(f"❌ Erreur Upload Mobile: {e}")
+        raise HTTPException(500, detail="Erreur lors de la réception du scan.")
+        
 @app.get("/scan/check-session/{session_id}")
 async def check_session(session_id: str):
     file_path = scan_sessions.get(session_id)
@@ -232,10 +251,17 @@ async def check_session(session_id: str):
 
 @app.get("/scan/get-result/{filename}")
 async def get_scan_result(filename: str, background_tasks: BackgroundTasks):
-    file_path = os.path.join(tempfile.gettempdir(), "umbrella_scans", filename)
+    # Sécurité : on empêche de sortir du dossier temp
+    safe_filename = os.path.basename(filename)
+    file_path = os.path.join(tempfile.gettempdir(), "umbrella_scans", safe_filename)
+    
     if os.path.exists(file_path):
-        return FileResponse(file_path, media_type="application/pdf")
-    raise HTTPException(404, "Fichier introuvable")
+        # On nettoie le fichier après l'envoi (important !)
+        # Attention: pour le scan mobile, on ne supprime pas tout le dossier, juste le fichier
+        background_tasks.add_task(os.remove, file_path)
+        return FileResponse(file_path, media_type="application/pdf", filename="scanned_document.pdf")
+    
+    raise HTTPException(404, "Le document a expiré ou est introuvable.")
 
 # --- ÉDITION & RÉPARATION ---
 
