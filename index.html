@@ -1022,90 +1022,85 @@ if (overlay) overlay.onclick = toggleMenu;
    // --- SUBMISSION LOGIC ---
 if (dlBtn) {
     dlBtn.onclick = async () => {
-    if (selectedFiles.length === 0) return;
-
-    // --- INTERCEPTION POUR LES OUTILS INTERACTIFS ---
-    
-    if (currentRoute === 'edit/sign') {
-        openToolModal('sign'); // Ouvre le dessin au lieu de lancer le fetch
-        return;
-    }
-    
-    if (currentRoute === 'security/protect') {
-        openToolModal('protect');
-        return;
-    }
-
-    if (currentRoute === 'edit/unlock') {
-        openToolModal('unlock');
-        return;
-    }
-
-    // --- LOGIQUE GENERALE (Pour Merge, Compress, etc.) ---
-    setBtnLoading(true, "Traitement Umbrella...");
-    const formData = new FormData();
-
-        // 3. Gestion des fichiers
-        if (finalRoute.includes('html-to-pdf')) {
-            const file = selectedFiles[0];
-            const text = await file.text(); 
-            formData.append('html_content', text); 
-        } else {
-            // Liste des outils attendant un seul fichier sous la clé 'file'
-            const isSingle = [
-                'split', 'protect', 'unlock', 'repair', 'extract', 
-                'remove', 'reorder', 'pdf-to-jpg', 'compress', 
-                'ocr', 'pdf-to-word', 'pdf-to-excel', 'pdf-to-pptx', 'pdf-to-pdfa'
-            ].some(slug => finalRoute.includes(slug));
-
-            if (isSingle) {
-                formData.append('file', selectedFiles[0]);
-            } else {
-                // Pour le 'merge' ou autres outils multi-fichiers
-                selectedFiles.forEach(f => formData.append('files', f));
-            }
+        if (selectedFiles.length === 0) {
+            alert("Veuillez sélectionner un fichier.");
+            return;
         }
 
-        // 4. Paramètres d'options
-        if (currentRoute.includes('ocr')) {
-            const langEl = document.getElementById('ocrLanguage');
-            formData.append('language', langEl ? langEl.value : 'fra');
-        }
+        // 0. Définition de la route finale
+        const finalRoute = routeMapping[currentRoute] || currentRoute;
 
-        if (currentRoute.includes('compress')) {
-            const qualEl = document.getElementById('compressQuality');
-            formData.append('quality', qualEl ? qualEl.value : 'medium');
+        // 1. INTERCEPTION POUR LES OUTILS INTERACTIFS
+        if (currentRoute === 'edit/sign') {
+            openToolModal('sign');
+            return;
         }
-
-        // 5. Gestion des pages
-        const toolsRequiringPages = ['remove', 'extract', 'reorder'];
-        if (toolsRequiringPages.some(tool => currentRoute.includes(tool))) {
-            let pagesValue = "";
-            
-            if (currentRoute.includes('reorder')) {
-                const items = document.querySelectorAll('.page-item-selector');
-                pagesValue = Array.from(items).map(el => el.getAttribute('data-page-index')).join(',');
-            } else {
-                if (selectedPages.size === 0) {
-                    alert("Veuillez sélectionner au moins une page dans l'aperçu.");
-                    setBtnLoading(false);
-                    return; 
-                }
-                pagesValue = Array.from(selectedPages).sort((a, b) => a - b).join(',');
-            }
-            formData.append('pages', pagesValue);
-        }
-
-        // 6. Envoi de la requête
+        
         if (currentRoute === 'security/protect') {
-    // Au lieu du prompt, on ouvre le modale SVG que tu as créé
-    setBtnLoading(false); // On arrête le loader car on attend l'utilisateur
-    openProtectModal(selectedFiles[0]);
-    return; // On arrête l'exécution ici, le fetch sera fait par confirmProtect()
-}
+            openToolModal('protect');
+            return;
+        }
+
+        if (currentRoute === 'edit/unlock') {
+            openToolModal('unlock');
+            return;
+        }
+
+        // 2. LOGIQUE GENERALE
+        setBtnLoading(true, "Traitement Umbrella...");
+        const formData = new FormData();
+
         try {
+            // 3. Gestion des fichiers
+            if (finalRoute.includes('html-to-pdf')) {
+                const file = selectedFiles[0];
+                const text = await file.text(); 
+                formData.append('html_content', text); 
+            } else {
+                const isSingle = ['split', 'protect', 'unlock', 'repair', 'extract', 
+                                  'remove', 'reorder', 'pdf-to-jpg', 'compress', 
+                                  'ocr', 'pdf-to-word', 'pdf-to-excel', 'pdf-to-pptx', 'pdf-to-pdfa'
+                                 ].some(slug => finalRoute.includes(slug));
+
+                if (isSingle) {
+                    formData.append('file', selectedFiles[0]);
+                } else {
+                    selectedFiles.forEach(f => formData.append('files', f));
+                }
+            }
+
+            // 4. Paramètres d'options
+            if (currentRoute.includes('ocr')) {
+                const langEl = document.getElementById('ocrLanguage');
+                formData.append('language', langEl ? langEl.value : 'fra');
+            }
+
+            if (currentRoute.includes('compress')) {
+                const qualEl = document.getElementById('compressQuality');
+                formData.append('quality', qualEl ? qualEl.value : 'medium');
+            }
+
+            // 5. Gestion des pages
+            const toolsRequiringPages = ['remove', 'extract', 'reorder'];
+            if (toolsRequiringPages.some(tool => currentRoute.includes(tool))) {
+                let pagesValue = "";
+                if (currentRoute.includes('reorder')) {
+                    const items = document.querySelectorAll('.page-item-selector');
+                    pagesValue = Array.from(items).map(el => el.getAttribute('data-page-index')).join(',');
+                } else {
+                    if (selectedPages.size === 0) {
+                        alert("Veuillez sélectionner au moins une page.");
+                        setBtnLoading(false);
+                        return; 
+                    }
+                    pagesValue = Array.from(selectedPages).sort((a, b) => a - b).join(',');
+                }
+                formData.append('pages', pagesValue);
+            }
+
+            // 6. Envoi de la requête
             const targetUrl = `${BASE_URL}/${finalRoute}`;
-            console.log("🚀 Tentative d'envoi vers :", targetUrl);
+            console.log("🚀 Envoi vers :", targetUrl);
 
             const response = await fetch(targetUrl, {
                 method: 'POST',
@@ -1115,51 +1110,37 @@ if (dlBtn) {
             if (response.ok) {
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-
-                // Détection de l'extension (plus robuste)
+                
+                // Détection d'extension
                 let ext = 'pdf';
                 const mime = blob.type.toLowerCase();
+                if (mime === "application/zip") ext = 'zip';
+                else if (mime.includes('word')) ext = 'docx';
+                else if (mime.includes('excel')) ext = 'xlsx';
+                else if (mime.includes('powerpoint')) ext = 'pptx';
+                else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
+                else if (mime.includes('png')) ext = 'png';
 
-                if (mime === "application/zip") {
-                    ext = 'zip';
-                } else if (mime.includes('word') || mime.includes('officedocument.wordprocessingml')) {
-                    ext = 'docx';
-                } else if (mime.includes('excel') || mime.includes('spreadsheet') || mime.includes('officedocument.spreadsheetml')) {
-                    ext = 'xlsx';
-                } else if (mime.includes('powerpoint') || mime.includes('presentationml')) {
-                    ext = 'pptx';
-                } else if (mime.includes('jpeg') || mime.includes('jpg')) {
-                    ext = 'jpg';
-                } else if (mime.includes('png')) {
-                    ext = 'png';
-                }
-
-                const timestamp = Date.now();
-                const fileName = `umbrella_${currentRoute.replace(/\//g, '_')}_${timestamp}.${ext}`;
-                
-                a.download = fileName;
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `umbrella_${currentRoute.replace(/\//g, '_')}_${Date.now()}.${ext}`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
                 
                 window.URL.revokeObjectURL(url);
-                resetUpload(); // Nettoyage
+                resetUpload();
             } else {
-                // Gestion d'erreur propre si le serveur ne renvoie pas de JSON (ex: erreur 500 brute)
-                let errorMessage = "Le serveur a rejeté la demande.";
+                let errorMessage = "Erreur serveur.";
                 try {
                     const errData = await response.json();
                     errorMessage = errData.detail || errorMessage;
-                } catch (e) {
-                    console.error("Erreur lors du parsing JSON de l'erreur:", e);
-                }
+                } catch (e) {}
                 alert(`Erreur (${response.status}): ${errorMessage}`);
             }
         } catch (e) {
-            console.error("❌ Erreur de connexion :", e);
-            alert("Impossible de joindre le serveur Umbrella (127.0.0.1:8000). Vérifiez que l'API est lancée.");
+            console.error("❌ Erreur :", e);
+            alert(`Impossible de joindre le service Umbrella. Vérifiez votre connexion ou l'état du serveur.`);
         } finally {
             setBtnLoading(false);
         }
