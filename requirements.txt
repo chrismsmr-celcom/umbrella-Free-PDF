@@ -6,7 +6,6 @@ jinja2==3.1.3
 
 # --- TRAITEMENT PDF ---
 pypdf==4.0.1
-# PyPDF2 supprimé pour éviter les conflits avec pypdf
 pdf2docx==0.5.6
 pdf2image==1.17.0
 pdfplumber==0.10.3
@@ -29,10 +28,7 @@ tabula-py==2.9.0
 reportlab==4.0.9
 requests==2.31.0
 weasyprint==61.2
-# AJOUT : Indispensable pour ta route html-to-pdf si tu n'utilises pas WeasyPrint partout
-pdfkit==1.0.0 
 
 # --- UTILITAIRES ---
 typing-extensions==4.9.0
-# AJOUT : Pour la gestion des polices dans WeasyPrint/ReportLab
 fonttools==4.47.2
