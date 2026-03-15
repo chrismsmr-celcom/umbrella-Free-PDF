@@ -199,17 +199,25 @@ async def serve_mobile_scan_page(s: str):
     return "<h1>Erreur : Fichier mobile_scan.html introuvable</h1>"
 
 @app.post("/scan/upload-mobile/{session_id}")
-async def upload_from_mobile(session_id: str, file: UploadFile = File(...)):
+async def upload_from_mobile(
+    session_id: str, 
+    file: UploadFile = File(...), 
+    mode: str = Form("color") # On récupère le choix ici
+):
     if session_id not in scan_sessions:
-        raise HTTPException(404, "Session expirée ou invalide")
+        raise HTTPException(404, "Session invalide")
+    
     storage_dir = os.path.join(tempfile.gettempdir(), "umbrella_scans")
     os.makedirs(storage_dir, exist_ok=True)
-    in_p = os.path.join(storage_dir, f"scan_{session_id}_{file.filename}")
+    
+    in_p = os.path.join(storage_dir, f"{uuid.uuid4().hex}_{file.filename}")
     with open(in_p, "wb") as f:
         shutil.copyfileobj(file.file, f)
-    scanned_pdf = handle_scan_effect(in_p, storage_dir)
+        
+    # On passe le mode à la fonction de traitement
+    scanned_pdf = handle_scan_effect(in_p, storage_dir, mode=mode)
     scan_sessions[session_id] = scanned_pdf
-    return {"status": "success", "message": "Fichier traité"}
+    return {"status": "success"}
 
 @app.get("/scan/check-session/{session_id}")
 async def check_session(session_id: str):
