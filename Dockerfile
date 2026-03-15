@@ -18,11 +18,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-fra \
     tesseract-ocr-eng \
     ghostscript \
-    # AJOUT : wkhtmltopdf pour ta route html-to-pdf
-    wkhtmltopdf \
-    # AJOUT : xfonts pour le rendu des textes HTML
-    xfonts-75dpi \
-    xfonts-base \
     python3-tk \
     libgl1 \
     default-jre \
