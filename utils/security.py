@@ -1,5 +1,5 @@
 import os
-from PyPDF2 import PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter
 
 def protect_pdf(input_path, output_dir, password):
     try:
