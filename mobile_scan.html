@@ -29,7 +29,14 @@
             <i class="fa fa-spinner fa-spin"></i> Envoi vers l'ordinateur...
         </div>
     </div>
-
+     <div style="margin-bottom: 20px; display: flex; justify-content: center; gap: 10px;">
+    <label style="font-size: 0.9rem;">
+        <input type="radio" name="scanMode" value="color" checked> Couleur
+    </label>
+    <label style="font-size: 0.9rem;">
+        <input type="radio" name="scanMode" value="grayscale"> Noir & Blanc
+    </label>
+  </div>
     <script>
         // --- CONFIGURATION ---
         const BASE_URL = "https://umbrella-free-pdf.onrender.com"; // TON URL RENDER
@@ -72,6 +79,9 @@
                 document.querySelector('.btn-scan').style.display = 'flex';
             }
         };
+        // Dans ta fonction onchange de l'input camera :
+    const mode = document.querySelector('input[name="scanMode"]:checked').value;
+    formData.append('mode', mode); // On envoie le choix au serveur
     </script>
 </body>
 </html>
