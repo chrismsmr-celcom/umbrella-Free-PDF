@@ -1555,9 +1555,7 @@ function openToolModal(type) {
         setTimeout(initSignaturePad, 100);
     }
 
-    // --- 3. Affichage final ---
-    modal.style.display = 'flex';
-}
+    }
     // EDIT (Rotation & Recadrage)
     // EDIT (Rotation & Recadrage avec Cropper.js)
     else if (type === 'edit') {
@@ -1607,6 +1605,11 @@ function openToolModal(type) {
         // On laisse un court délai pour que le DOM soit prêt avant d'initialiser Cropper
         setTimeout(() => initCropper(selectedFiles[0]), 200);
     }
+
+ // --- 3. Affichage final ---
+    modal.style.display = 'flex';
+}
+
 function closeUniversalModal() {
     const modal = document.getElementById('universalModal');
     if (modal) {
