@@ -149,21 +149,31 @@ async def split_endpoint(background_tasks: BackgroundTasks, file: UploadFile = F
 async def reorder_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(...), pages: str = Form(...)):
     temp_dir = tempfile.mkdtemp()
     try:
-        if not pages or pages.strip() == "":
-            raise HTTPException(400, "L'ordre des pages est invalide.")
+        # Nettoyage de la chaîne de pages (ex: "1,3,2" -> "1,3,2")
+        pages = pages.strip()
+        if not pages:
+            raise HTTPException(400, "Aucun ordre de page reçu.")
             
         in_p = os.path.join(temp_dir, file.filename)
         with open(in_p, "wb") as f:
             shutil.copyfileobj(file.file, f)
             
         result = handle_reorder(in_p, pages, temp_dir)
-        if result:
-            # On utilise handle_batch_response pour tout uniformiser (watermark + cleanup)
-            return handle_batch_response([result], background_tasks, temp_dir)
         
-        raise HTTPException(400, "Erreur lors du réordonnancement.")
+        if result and os.path.exists(result):
+            # IMPORTANT : On retourne le fichier directement avec FileResponse 
+            # si tu ne veux pas passer par handle_batch_response qui peut zipper
+            from fastapi.responses import FileResponse
+            background_tasks.add_task(cleanup, temp_dir)
+            return FileResponse(
+                result, 
+                media_type="application/pdf", 
+                filename=f"umbrella_reordered_{int(time.time())}.pdf"
+            )
+        
+        raise HTTPException(400, "Erreur lors du traitement PDF.")
     except Exception as e:
-        cleanup(temp_dir)
+        if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
         raise HTTPException(500, detail=str(e))
 
 @app.post("/organize/extract")
