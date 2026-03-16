@@ -273,8 +273,27 @@
     transform: rotate(90deg);
 }
 .modal-header-custom {
-    padding: 40px 40px 20px;
+    padding: 25px;
     text-align: center;
+    transition: all 0.3s ease-in-out;
+}
+.header-compact {
+    display: flex;
+    flex-direction: row; /* Aligne icône et titre sur une ligne */
+    align-items: center;
+    gap: 15px;
+    text-align: left !important;
+    padding: 15px 20px;
+    border-bottom: 1px solid #f0f0f5;
+}
+.header-compact #modalDescription {
+    display: none; /* Cache la description pour gagner de la place en mode édition */
+}
+
+/* Thème Sécurité */
+.header-security #modalTitle {
+    color: var(--primary);
+    font-weight: 800;
 }
 .modal-icon-container {
     margin-bottom: 15px;
@@ -702,6 +721,7 @@
     pointer-events: auto;
 }
   </style>
+
 
 </head>
 <body>
@@ -1539,16 +1559,23 @@ function openToolModal(type) {
     const icon = document.getElementById('modalIcon');
     const footer = document.getElementById('modalFooter');
     const actionBtn = document.getElementById('modalActionBtn');
+    const header = document.getElementById('modalHeader'); // Récupération du header
 
     if (!modal || !body) return;
 
-    // --- 1. Réinitialisation complète ---
+    // --- 1. Réinitialisation complète & Header Dynamique ---
     body.innerHTML = '';
     icon.innerHTML = '';
     desc.innerText = '';
     footer.style.display = 'none';
     content.style.maxWidth = '420px'; // Taille par défaut
-    actionBtn.onclick = null; // Nettoyage vital pour éviter les doubles déclenchements
+    actionBtn.onclick = null; 
+
+    // Logique du Header Dynamique (Reset de base)
+    if (header) {
+        header.className = 'modal-header-custom'; // Reset classe
+        header.style.textAlign = 'center'; // Par défaut centré
+    }
 
     // --- 2. Configuration par type ---
     
@@ -1577,6 +1604,9 @@ function openToolModal(type) {
             alert("Veuillez d'abord sélectionner un fichier.");
             return;
         }
+        // HEADER DYNAMIQUE COMPACT
+        if (header) header.classList.add('header-compact');
+        
         content.style.maxWidth = '1100px';
         title.innerText = "Organiser les pages";
         desc.innerText = "Glissez les pages pour changer l'ordre.";
@@ -1589,15 +1619,11 @@ function openToolModal(type) {
         footer.style.display = 'block';
         actionBtn.innerText = "Appliquer les changements";
         
-        // CORRECTION ICI : On définit explicitement l'action
         actionBtn.onclick = async () => {
-            // On lance la fonction de téléchargement globale
-            // Elle va aller lire le contenu de #pagesGrid que l'on vient de remplir
             await dlBtn.onclick(); 
             closeUniversalModal();
         };
         
-        // On remplit la grille
         renderPagesIntoUniversalGrid(selectedFiles[0]); 
     }
 
@@ -1605,6 +1631,7 @@ function openToolModal(type) {
     else if (type === 'ocr') {
         title.innerText = "Reconnaissance de texte (OCR)";
         desc.innerText = "Choisissez la langue pour une détection optimale.";
+        icon.innerHTML = `<i class="fa fa-language" style="font-size:35px; color:var(--primary);"></i>`;
         body.innerHTML = `
             <select id="ocrLanguage" class="style-select" style="width:100%; padding:15px; border-radius:15px; border:1px solid #eee;">
                 <option value="fra">Français</option>
@@ -1617,6 +1644,7 @@ function openToolModal(type) {
 
     // UNLOCK
     else if (type === 'unlock') {
+        if (header) header.classList.add('header-warning'); // Thème Alerte (Jaune)
         title.innerText = "Déverrouiller le document";
         desc.innerText = "Entrez le mot de passe actuel pour supprimer les restrictions.";
         icon.innerHTML = `<svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="#f1c40f" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`;
@@ -1643,7 +1671,7 @@ function openToolModal(type) {
                     <div style="width: 80px; height: 80px; background: #f8f8fc; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary);">
                         <i class="fa fa-camera" style="font-size: 30px;"></i>
                     </div>
-                    <button id="directScanBtn" class="action-btn" style="width: 100%; justify-content: center; background: var(--primary); color: white;">
+                    <button id="directScanBtn" class="action-btn" style="width: 100%; justify-content: center; background: var(--primary); color: white; border:none; padding:15px; border-radius:15px;">
                         Ouvrir l'appareil photo
                     </button>
                 </div>`;
@@ -1680,6 +1708,7 @@ function openToolModal(type) {
     else if (type === 'sign') {
         title.innerText = "Signer le document";
         desc.innerText = "Dessinez votre signature ci-dessous.";
+        icon.innerHTML = `<i class="fa fa-pen-nib" style="font-size:30px; color:var(--primary);"></i>`;
         body.innerHTML = `
             <div style="background: #f8f8fc; border: 2px dashed #ccc; border-radius: 15px; position: relative; cursor: crosshair;">
                 <canvas id="signaturePad" width="380" height="200" style="touch-action: none; width: 100%;"></canvas>
@@ -1688,7 +1717,7 @@ function openToolModal(type) {
                 </button>
             </div>
             <div style="margin-top: 15px; display: flex; gap: 10px;">
-                <button onclick="importSignatureImage()" class="btn-secondary" style="font-size: 11px; padding: 8px 12px;">
+                <button onclick="importSignatureImage()" class="btn-secondary" style="font-size: 11px; padding: 8px 12px; border-radius:10px; border:1px solid #ddd; background:white;">
                     <i class="fa fa-image"></i> Importer image
                 </button>
             </div>`;
@@ -1704,8 +1733,11 @@ function openToolModal(type) {
             alert("Veuillez d'abord sélectionner un fichier.");
             return;
         }
+        // HEADER DYNAMIQUE COMPACT
+        if (header) header.classList.add('header-compact');
+
         title.innerText = "Éditeur Umbrella";
-        desc.innerText = "Faites glisser les bords pour recadrer ou utilisez les boutons pour pivoter.";
+        desc.innerText = "Recadrez ou pivotez votre document.";
         icon.innerHTML = `<i class="fa fa-crop-alt" style="font-size:30px; color:var(--primary);"></i>`;
         content.style.maxWidth = '800px';
         body.innerHTML = `
@@ -1714,20 +1746,20 @@ function openToolModal(type) {
                     <img id="imgEditPreview" style="display: block; max-width: 100%;">
                 </div>
                 <div style="display: flex; gap: 10px; width: 100%; justify-content: center; flex-wrap: wrap; padding: 5px;">
-                    <button onclick="rotatePreview(-90)" class="btn-secondary" title="Pivoter à gauche" style="width:45px; height:45px; border-radius:12px;">
+                    <button onclick="rotatePreview(-90)" class="btn-secondary" title="Pivoter à gauche" style="width:45px; height:45px; border-radius:12px; border:1px solid #ddd; background:white;">
                         <i class="fa fa-undo"></i>
                     </button>
-                    <button onclick="rotatePreview(90)" class="btn-secondary" title="Pivoter à droite" style="width:45px; height:45px; border-radius:12px;">
+                    <button onclick="rotatePreview(90)" class="btn-secondary" title="Pivoter à droite" style="width:45px; height:45px; border-radius:12px; border:1px solid #ddd; background:white;">
                         <i class="fa fa-redo"></i>
                     </button>
                     <div style="width:2px; height:45px; background:#eee; margin: 0 5px;"></div>
-                    <button onclick="cropper.setDragMode('crop')" class="btn-secondary" title="Mode Sélection" style="width:45px; height:45px; border-radius:12px;">
+                    <button onclick="cropper.setDragMode('crop')" class="btn-secondary" title="Mode Sélection" style="width:45px; height:45px; border-radius:12px; border:1px solid #ddd; background:white;">
                         <i class="fa fa-crop"></i>
                     </button>
-                    <button onclick="cropper.setDragMode('move')" class="btn-secondary" title="Mode Main" style="width:45px; height:45px; border-radius:12px;">
+                    <button onclick="cropper.setDragMode('move')" class="btn-secondary" title="Mode Main" style="width:45px; height:45px; border-radius:12px; border:1px solid #ddd; background:white;">
                         <i class="fa fa-arrows-alt"></i>
                     </button>
-                    <button onclick="cropper.reset()" class="btn-secondary" title="Réinitialiser" style="width:45px; height:45px; border-radius:12px;">
+                    <button onclick="cropper.reset()" class="btn-secondary" title="Réinitialiser" style="width:45px; height:45px; border-radius:12px; border:1px solid #ddd; background:white;">
                         <i class="fa fa-sync-alt"></i>
                     </button>
                 </div>
@@ -1741,7 +1773,6 @@ function openToolModal(type) {
     // --- 3. Affichage final ---
     modal.style.display = 'flex';
 }
-
 function closeUniversalModal() {
     const modal = document.getElementById('universalModal');
     if (modal) {
@@ -2066,6 +2097,42 @@ async function confirmEdit() {
             .catch(err => console.log('Échec de l\'enregistrement du SW:', err));
     });
 } 
+function updateModalHeader(type, titleText, descriptionText) {
+    const header = document.getElementById('modalHeader');
+    const iconContainer = document.getElementById('modalIcon');
+    const title = document.getElementById('modalTitle');
+    const desc = document.getElementById('modalDescription');
+
+    // 1. Reset des classes
+    header.className = 'modal-header-custom';
+    
+    // 2. Mise à jour des textes
+    title.innerText = titleText;
+    desc.innerText = descriptionText;
+
+    // 3. Logique dynamique selon le type
+    switch(type) {
+        case 'organize':
+        case 'extract':
+        case 'edit':
+            // Mode "Outil Visuel" : Header compact sur le côté
+            header.classList.add('header-compact');
+            break;
+        case 'protect':
+            // Mode "Sécurité" : Thème bleu
+            header.classList.add('header-security');
+            iconContainer.innerHTML = `<i class="fa fa-shield-alt" style="font-size:30px; color:var(--primary);"></i>`;
+            break;
+        case 'unlock':
+            // Mode "Alerte" : Thème Jaune
+            header.classList.add('header-warning');
+            iconContainer.innerHTML = `<i class="fa fa-unlock" style="font-size:30px; color:#f1c40f;"></i>`;
+            break;
+        default:
+            // Mode standard
+            header.style.textAlign = 'center';
+    }
+}
 </script>
 </body>
 </html>
