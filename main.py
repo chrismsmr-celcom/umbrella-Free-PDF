@@ -200,6 +200,29 @@ async def remove_endpoint(background_tasks: BackgroundTasks, file: UploadFile = 
         cleanup(temp_dir)
         raise HTTPException(500, detail=str(e))
 
+@app.post("/edit/process")
+async def edit_document(
+    file: UploadFile = File(...),
+    rotation: int = Form(0),
+    x: float = Form(None),
+    y: float = Form(None),
+    w: float = Form(None),
+    h: float = Form(None)
+):
+    temp_in = f"temp_in_{uuid.uuid4().hex}"
+    temp_out = f"edit_result_{uuid.uuid4().hex}.pdf"
+    
+    with open(temp_in, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+        
+    crop = {"x": x, "y": y, "w": w, "h": h} if x is not None else None
+    
+    try:
+        from utils.edit import process_edit
+        process_edit(temp_in, temp_out, rotation, crop)
+        return FileResponse(temp_out, media_type="application/pdf", filename="umbrella_edited.pdf")
+    finally:
+        if os.path.exists(temp_in): os.remove(temp_in)
 # --- SCAN MOBILE ---
 
 @app.get("/scan/generate-session")
