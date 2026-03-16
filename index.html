@@ -1071,20 +1071,23 @@ if (dlBtn) {
             if (toolsRequiringPages.some(tool => currentRoute.includes(tool))) {
                 let pagesValue = "";
 
-                if (currentRoute.includes('reorder')) {
-    const items = document.querySelectorAll('.page-item-selector');
+                // Dans ta section 5 du dlBtn.onclick
+if (currentRoute.includes('reorder')) {
+    // On cherche les items DANS le modal universel
+    const items = document.querySelectorAll('#pagesGrid .page-item-selector');
+    
     if (items.length > 0) {
         pagesValue = Array.from(items)
             .map(el => el.getAttribute('data-page-index'))
-            .filter(val => val !== null)
             .join(',');
-                    } else {
-                        alert("L'aperçu des pages n'est pas prêt. Veuillez patienter ou déplacer une page.");
-                        setBtnLoading(false);
-                        return;
-                    }
-                } else {
-                    // Mode Remove ou Extract (sélection par clic sur pages)
+        console.log("Nouvel ordre envoyé :", pagesValue);
+    } else {
+        alert("Erreur : Impossible de lire l'ordre des pages.");
+        setBtnLoading(false);
+        return;
+    }
+} else {
+        // Mode Remove ou Extract (sélection par clic sur pages)
                     if (!selectedPages || selectedPages.size === 0) {
                         alert("Veuillez sélectionner au moins une page sur le document.");
                         setBtnLoading(false);
@@ -1450,19 +1453,25 @@ function openToolModal(type) {
         }
         content.style.maxWidth = '1100px';
         title.innerText = "Organiser les pages";
-        desc.innerText = "Glissez pour réorganiser ou cliquez pour sélectionner.";
+        desc.innerText = "Glissez les pages pour changer l'ordre.";
         body.innerHTML = `
-            <div id="selectionStatus" style="margin-bottom:10px; font-weight:bold; color:var(--primary);">0 page(s) sélectionnée(s)</div>
-            <div id="pagesGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:20px; max-height:60vh; overflow-y:auto; padding:10px; background:#f8f8fc; border-radius:20px;"></div>`;
+            <div id="selectionStatus" style="margin-bottom:10px; font-weight:bold; color:var(--primary);">
+                Mode Réorganisation activé
+            </div>
+            <div id="pagesGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:20px; max-height:60vh; overflow-y:auto; padding:15px; background:#f8f8fc; border-radius:20px;">
+                </div>`;
         footer.style.display = 'block';
-        actionBtn.innerText = "Confirmer la sélection";
-        actionBtn.onclick = async () => {
-    // On ne ferme le modal qu'après avoir lancé l'action
-    // dlBtn.click() va déclencher la fonction async dlBtn.onclick que nous avons corrigée ensemble
-    await dlBtn.click(); 
-    closeUniversalModal();
-};
+        actionBtn.innerText = "Appliquer les changements";
         
+        // CORRECTION ICI : On définit explicitement l'action
+        actionBtn.onclick = async () => {
+            // On lance la fonction de téléchargement globale
+            // Elle va aller lire le contenu de #pagesGrid que l'on vient de remplir
+            await dlBtn.onclick(); 
+            closeUniversalModal();
+        };
+        
+        // On remplit la grille
         renderPagesIntoUniversalGrid(selectedFiles[0]); 
     }
 
