@@ -421,13 +421,24 @@ async def pdf_to_excel_endpoint(background_tasks: BackgroundTasks, file: UploadF
         in_p = os.path.join(temp_dir, file.filename)
         with open(in_p, "wb") as f:
             shutil.copyfileobj(file.file, f)
+            
         result = pdf_to_excel(in_p, temp_dir)
+        
         if result and os.path.exists(result):
-            return handle_batch_response([result], background_tasks, temp_dir)
-        raise HTTPException(400, "Échec conversion Excel")
+            # On programme le nettoyage du dossier après la réponse
+            background_tasks.add_task(cleanup, temp_dir)
+            
+            return FileResponse(
+                path=result, 
+                filename=f"{os.path.splitext(file.filename)[0]}.xlsx", 
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        
+        raise HTTPException(status_code=400, detail="Échec conversion Excel")
+        
     except Exception as e:
-        cleanup(temp_dir)
-        raise HTTPException(500, detail=str(e))
+        cleanup(temp_dir) # Nettoyage immédiat si erreur avant l'envoi
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/convert/pdf-to-pptx")
 async def pdf_to_pptx_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
@@ -436,13 +447,23 @@ async def pdf_to_pptx_endpoint(background_tasks: BackgroundTasks, file: UploadFi
         in_p = os.path.join(temp_dir, file.filename)
         with open(in_p, "wb") as f:
             shutil.copyfileobj(file.file, f)
+            
         result = pdf_to_pptx(in_p, temp_dir)
+        
         if result and os.path.exists(result):
-            return handle_batch_response([result], background_tasks, temp_dir)
-        raise HTTPException(400, "La conversion PowerPoint a échoué.")
+            background_tasks.add_task(cleanup, temp_dir)
+            
+            return FileResponse(
+                path=result, 
+                filename=f"{os.path.splitext(file.filename)[0]}.pptx", 
+                media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
+        
+        raise HTTPException(status_code=400, detail="La conversion PowerPoint a échoué.")
+        
     except Exception as e:
         cleanup(temp_dir)
-        raise HTTPException(500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/convert/html-to-pdf")
 async def html_to_pdf_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(None), html_content: str = Form(None)):
