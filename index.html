@@ -1072,14 +1072,12 @@ if (dlBtn) {
                 let pagesValue = "";
 
                 if (currentRoute.includes('reorder')) {
-                    // Récupération de l'ordre via les vignettes
-                    const items = document.querySelectorAll('.page-item-selector');
-                    
-                    if (items.length > 0) {
-                        pagesValue = Array.from(items)
-                            .map(el => el.getAttribute('data-page-index'))
-                            .filter(val => val !== null)
-                            .join(',');
+    const items = document.querySelectorAll('.page-item-selector');
+    if (items.length > 0) {
+        pagesValue = Array.from(items)
+            .map(el => el.getAttribute('data-page-index'))
+            .filter(val => val !== null)
+            .join(',');
                     } else {
                         alert("L'aperçu des pages n'est pas prêt. Veuillez patienter ou déplacer une page.");
                         setBtnLoading(false);
