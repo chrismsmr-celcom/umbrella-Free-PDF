@@ -4,6 +4,7 @@ import platform
 import uuid
 from pdf2docx import Converter
 import pdfplumber
+import camelot
 import pandas as pd
 import tabula
 import pytesseract
@@ -68,20 +69,25 @@ def pdf_to_word_ocr(pdf_path, output_path):
 
 # --- PDF -> WORD ---
 def pdf_to_word(pdf_path, output_dir):
+    base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+    output_path = os.path.join(output_dir, f"{base_name}.docx")
+    
+    # 1. Priorité : pdf2docx (Le meilleur pour la mise en page)
     try:
-        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
-        output_path = os.path.join(output_dir, f"{base_name}.docx")
-        
-        if not is_pdf_searchable(pdf_path):
-            if pdf_to_word_ocr(pdf_path, output_path):
-                return output_path
+        cv = Converter(pdf_path)
+        # multi_processing=True aide pour la vitesse sur Render
+        cv.convert(output_path, start=0, end=None)
+        cv.close()
+        if os.path.exists(output_path): return output_path
+    except:
+        pass # On passe à la suite si ça échoue
 
-        soffice = get_soffice_path()
-        if soffice:
-            command = [soffice, "--headless", "--convert-to", "docx:MS Word 2007 XML", "--outdir", output_dir, pdf_path]
-            subprocess.run(command, check=True, capture_output=True, timeout=60)
-            if os.path.exists(output_path):
-                return output_path
+    # 2. Secours : LibreOffice (Moins fidèle mais robuste)
+    soffice = get_soffice_path()
+    if soffice:
+        # Commande pour forcer l'importation propre
+        subprocess.run([soffice, "--headless", "--convert-to", "docx", "--outdir", output_dir, pdf_path])
+        return output_path
 
         cv = Converter(pdf_path)
         cv.convert(output_path, lattice_threshold=15, multi_processing=True)
@@ -93,40 +99,70 @@ def pdf_to_word(pdf_path, output_dir):
 
 # --- PDF -> EXCEL ---
 def pdf_to_excel(pdf_path, output_dir):
+    """
+    Convertit un PDF en Excel avec une fidélité maximale.
+    Priorise Camelot pour la précision structurelle.
+    """
     try:
         base_name = os.path.splitext(os.path.basename(pdf_path))[0]
         output_path = os.path.join(output_dir, f"{base_name}.xlsx")
         
+        # --- ÉTAPE 1 : ESSAI AVEC CAMELOT (Fidélité Haute Précision) ---
+        # Camelot analyse les lignes (lattice) et les espaces (stream)
+        try:
+            # On tente d'abord 'lattice' (idéal pour les tableaux avec des bordures visibles)
+            tables = camelot.read_pdf(pdf_path, pages='all', flavor='lattice')
+            
+            # Si aucune table avec bordure, on tente 'stream' (tableaux sans lignes)
+            if len(tables) == 0:
+                tables = camelot.read_pdf(pdf_path, pages='all', flavor='stream')
+            
+            if len(tables) > 0:
+                # Export direct vers Excel via Camelot
+                tables.export(output_path, f='excel')
+                # Camelot génère parfois des noms comme output.xlsx, on renomme si besoin
+                if os.path.exists(output_path):
+                    return output_path
+        except Exception as cam_err:
+            print(f"⚠️ Camelot a échoué, passage au moteur de secours: {cam_err}")
+
+        # --- ÉTAPE 2 : REPLI SUR PDFPLUMBER (Fidélité de Secours) ---
         all_tables_found = False
         
         with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
             with pdfplumber.open(pdf_path) as pdf:
                 for i, page in enumerate(pdf.pages):
-                    # On extrait le tableau de la page
-                    table = page.extract_table()
+                    # Configuration avancée pour pdfplumber
+                    table = page.extract_table({
+                        "vertical_strategy": "lines", 
+                        "horizontal_strategy": "lines",
+                        "snap_tolerance": 3,
+                    })
+                    
+                    if not table:
+                        table = page.extract_table() # Tentative automatique
                     
                     if table:
                         all_tables_found = True
-                        # On transforme en DataFrame (1ère ligne = colonnes)
+                        # Nettoyage des données pour éviter les décalages de colonnes
                         df = pd.DataFrame(table[1:], columns=table[0])
-                        
-                        # Nettoyage rapide : on enlève les lignes/colonnes totalement vides
                         df = df.dropna(how='all').dropna(axis=1, how='all')
                         
-                        # Nom de la feuille (max 31 car.)
+                        # Nettoyage des caractères spéciaux qui font planter Excel
+                        df = df.applymap(lambda x: x.encode('unicode_escape').decode('utf-8') if isinstance(x, str) else x)
+                        
                         sheet_name = f"Page_{i+1}"
-                        df.to_excel(writer, sheet_name=sheet_name, index=False)
+                        df.to_excel(writer, sheet_name=sheet_name[:31], index=False)
             
-            # Si aucun tableau n'a été trouvé du tout
             if not all_tables_found:
-                df_info = pd.DataFrame([["Aucun tableau détecté sur les pages du PDF."]])
+                df_info = pd.DataFrame([["Aucun tableau structurel n'a été détecté."]])
                 df_info.to_excel(writer, sheet_name="Info", index=False, header=False)
 
         return output_path
-    except Exception as e:
-        print(f"❌ Erreur PDF to Excel (pdfplumber): {e}")
-        return None     
 
+    except Exception as e:
+        print(f"❌ Erreur critique PDF to Excel: {e}")
+        return None
 # --- PDF -> PPTX ---
 def pdf_to_pptx(pdf_path, output_dir):
     try:
