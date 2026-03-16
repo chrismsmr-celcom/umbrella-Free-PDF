@@ -1002,7 +1002,7 @@ if (dlBtn) {
 
         const finalRoute = routeMapping[currentRoute] || currentRoute;
 
-        // 1. INTERCEPTION POUR LES OUTILS INTERACTIFS
+        // 1. INTERCEPTION POUR LES OUTILS INTERACTIFS (NE PAS TOUCHER)
         if (currentRoute === 'edit/sign') {
             openToolModal('sign');
             return;
@@ -1017,13 +1017,12 @@ if (dlBtn) {
             openToolModal('unlock');
             return;
         }
-        // AJOUTER CECI POUR L'ÉDITEUR
+
         if (currentRoute === 'edit/process') {
             openToolModal('edit');
             return;
         }
 
-        // AJOUTER CECI POUR L'ORGANISATION (Si tu veux le modal grid)
         if (currentRoute === 'organize/reorder') {
             openToolModal('organize');
             return;
@@ -1040,10 +1039,13 @@ if (dlBtn) {
                 const text = await file.text(); 
                 formData.append('html_content', text); 
             } else {
-                const isSingle = ['split', 'protect', 'unlock', 'repair', 'extract', 
-                                  'remove', 'reorder', 'pdf-to-jpg', 'compress', 
-                                  'ocr', 'pdf-to-word', 'pdf-to-excel', 'pdf-to-pptx', 'pdf-to-pdfa'
-                                 ].some(slug => finalRoute.includes(slug));
+                // Vérification si l'outil accepte un seul fichier (file) ou plusieurs (files)
+                const isSingle = [
+                    'split', 'protect', 'unlock', 'repair', 'extract', 
+                    'remove', 'reorder', 'pdf-to-jpg', 'compress', 
+                    'ocr', 'pdf-to-word', 'pdf-to-excel', 'pdf-to-pptx', 
+                    'pdf-to-pdfa', 'office-to-pdf'
+                ].some(slug => finalRoute.includes(slug));
 
                 if (isSingle) {
                     formData.append('file', selectedFiles[0]);
@@ -1052,7 +1054,7 @@ if (dlBtn) {
                 }
             }
 
-            // 4. Paramètres d'options
+            // 4. Paramètres d'options (OCR, Compression)
             if (currentRoute.includes('ocr')) {
                 const langEl = document.getElementById('ocrLanguage');
                 formData.append('language', langEl ? langEl.value : 'fra');
@@ -1063,52 +1065,48 @@ if (dlBtn) {
                 formData.append('quality', qualEl ? qualEl.value : 'medium');
             }
 
-            // 5. Gestion des pages
-           const toolsRequiringPages = ['remove', 'extract', 'reorder'];
+            // 5. Gestion des pages (Remove, Extract, Reorder)
+            const toolsRequiringPages = ['remove', 'extract', 'reorder'];
 
-if (toolsRequiringPages.some(tool => currentRoute.includes(tool))) {
-    let pagesValue = "";
+            if (toolsRequiringPages.some(tool => currentRoute.includes(tool))) {
+                let pagesValue = "";
 
-    if (currentRoute.includes('reorder')) {
-        // On récupère l'ordre via les vignettes de l'aperçu
-        const items = document.querySelectorAll('.page-item-selector');
-        
-        if (items.length > 0) {
-            pagesValue = Array.from(items)
-                .map(el => el.getAttribute('data-page-index'))
-                .filter(val => val !== null) // Sécurité : évite les valeurs nulles
-                .join(',');
-        } else {
-            // Sécurité : si l'utilisateur n'a pas touché à l'ordre ou si l'aperçu bug, 
-            // on ne peut pas envoyer une chaîne vide (422). On annule.
-            alert("L'aperçu des pages n'est pas prêt. Veuillez patienter ou déplacer une page.");
-            setBtnLoading(false);
-            return;
-        }
-    } else {
-        // Mode Remove ou Extract
-        if (!selectedPages || selectedPages.size === 0) {
-            alert("Veuillez sélectionner au moins une page sur le document.");
-            setBtnLoading(false);
-            return; 
-        }
-        // On trie numériquement pour éviter les erreurs d'index
-        pagesValue = Array.from(selectedPages)
-            .sort((a, b) => a - b)
-            .join(',');
-    }
+                if (currentRoute.includes('reorder')) {
+                    // Récupération de l'ordre via les vignettes
+                    const items = document.querySelectorAll('.page-item-selector');
+                    
+                    if (items.length > 0) {
+                        pagesValue = Array.from(items)
+                            .map(el => el.getAttribute('data-page-index'))
+                            .filter(val => val !== null)
+                            .join(',');
+                    } else {
+                        alert("L'aperçu des pages n'est pas prêt. Veuillez patienter ou déplacer une page.");
+                        setBtnLoading(false);
+                        return;
+                    }
+                } else {
+                    // Mode Remove ou Extract (sélection par clic sur pages)
+                    if (!selectedPages || selectedPages.size === 0) {
+                        alert("Veuillez sélectionner au moins une page sur le document.");
+                        setBtnLoading(false);
+                        return; 
+                    }
+                    pagesValue = Array.from(selectedPages)
+                        .sort((a, b) => a - b)
+                        .join(',');
+                }
 
-    // On vérifie une dernière fois que pagesValue n'est pas une chaîne vide
-    if (!pagesValue || pagesValue.trim() === "") {
-        alert("Erreur : Aucune page détectée pour cette opération.");
-        setBtnLoading(false);
-        return;
-    }
+                if (!pagesValue || pagesValue.trim() === "") {
+                    alert("Erreur : Aucune page détectée pour cette opération.");
+                    setBtnLoading(false);
+                    return;
+                }
 
-    formData.append('pages', pagesValue);
-}
+                formData.append('pages', pagesValue);
+            }
 
-            // 6. Envoi de la requête
+            // 6. Envoi de la requête au Backend
             const targetUrl = `${BASE_URL}/${finalRoute}`;
             console.log("🚀 Envoi vers :", targetUrl);
 
@@ -1121,15 +1119,17 @@ if (toolsRequiringPages.some(tool => currentRoute.includes(tool))) {
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
                 
-                // Détection d'extension
+                // --- DÉTECTION D'EXTENSION AMÉLIORÉE (CORRECTIF) ---
                 let ext = 'pdf';
                 const mime = blob.type.toLowerCase();
-                if (mime === "application/zip") ext = 'zip';
-                else if (mime.includes('word')) ext = 'docx';
-                else if (mime.includes('excel')) ext = 'xlsx';
-                else if (mime.includes('powerpoint')) ext = 'pptx';
+
+                if (mime.includes("zip")) ext = 'zip';
+                else if (mime.includes('word') || mime.includes('officedocument.wordprocessingml')) ext = 'docx';
+                else if (mime.includes('excel') || mime.includes('officedocument.spreadsheetml')) ext = 'xlsx';
+                else if (mime.includes('powerpoint') || mime.includes('officedocument.presentationml')) ext = 'pptx';
                 else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
                 else if (mime.includes('png')) ext = 'png';
+                // --------------------------------------------------
 
                 const a = document.createElement('a');
                 a.href = url;
