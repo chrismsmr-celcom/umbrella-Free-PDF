@@ -209,20 +209,31 @@ async def edit_document(
     w: float = Form(None),
     h: float = Form(None)
 ):
-    temp_in = f"temp_in_{uuid.uuid4().hex}"
+    # Récupérer l'extension originale (ex: .pdf ou .jpg)
+    ext = os.path.splitext(file.filename)[1].lower()
+    if not ext:
+        ext = ".pdf" # Par défaut si vide
+
+    temp_in = f"temp_in_{uuid.uuid4().hex}{ext}" # Ajout de l'extension ici
     temp_out = f"edit_result_{uuid.uuid4().hex}.pdf"
     
-    with open(temp_in, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-        
-    crop = {"x": x, "y": y, "w": w, "h": h} if x is not None else None
-    
     try:
+        with open(temp_in, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+            
+        crop = {"x": x, "y": y, "w": w, "h": h} if x is not None else None
+        
         from utils.edit import process_edit
         process_edit(temp_in, temp_out, rotation, crop)
+        
         return FileResponse(temp_out, media_type="application/pdf", filename="umbrella_edited.pdf")
+    except Exception as e:
+        print(f"Erreur Edit: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if os.path.exists(temp_in): os.remove(temp_in)
+        # Attention: Ne pas supprimer temp_out ici sinon FileResponse échouera 
+        # (Il vaut mieux utiliser BackgroundTasks pour supprimer temp_out après l'envoi)
 # --- SCAN MOBILE ---
 
 @app.get("/scan/generate-session")
