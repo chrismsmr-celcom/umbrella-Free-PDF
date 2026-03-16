@@ -1867,26 +1867,34 @@ function rotatePreview(deg) {
 async function confirmEdit() {
     if (!cropper) return;
 
+    // Sécurité supplémentaire : vérifier si un fichier est sélectionné
+    if (!selectedFiles || selectedFiles.length === 0) {
+        alert("Aucun fichier sélectionné.");
+        return;
+    }
+
     setBtnLoading(true, "Génération du document...");
     
-    // 1. Récupérer les données de recadrage en POURCENTAGE (plus robuste pour le backend)
-    const data = cropper.getData(true); // Données entières
-    const canvasData = cropper.getCanvasData(); // Taille réelle de l'image affichée
+    // 1. Récupérer les données de l'image source (dimensions réelles)
+    // getImageData est plus fiable que getCanvasData pour naturalWidth/Height
+    const imageData = cropper.getImageData(); 
+    const data = cropper.getData(true); // Données de recadrage (x, y, width, height)
     
-    // Calcul des ratios pour ton Python
-    const x = (data.x / canvasData.naturalWidth) * 100;
-    const y = (data.y / canvasData.naturalHeight) * 100;
-    const w = (data.width / canvasData.naturalWidth) * 100;
-    const h = (data.height / canvasData.naturalHeight) * 100;
+    // 2. Calcul des ratios en POURCENTAGE
+    // On utilise imageData.naturalWidth/Height pour être certain de pointer sur l'original
+    const x = (data.x / imageData.naturalWidth) * 100;
+    const y = (data.y / imageData.naturalHeight) * 100;
+    const w = (data.width / imageData.naturalWidth) * 100;
+    const h = (data.height / imageData.naturalHeight) * 100;
     const rotation = data.rotate;
 
     const formData = new FormData();
     formData.append("file", selectedFiles[0]);
     formData.append("rotation", rotation);
-    formData.append("x", x);
-    formData.append("y", y);
-    formData.append("w", w);
-    formData.append("h", h);
+    formData.append("x", x.toFixed(4)); // On limite les décimales pour la propreté
+    formData.append("y", y.toFixed(4));
+    formData.append("w", w.toFixed(4));
+    formData.append("h", h.toFixed(4));
 
     try {
         const response = await fetch(`${BASE_URL}/edit/process`, {
@@ -1895,13 +1903,16 @@ async function confirmEdit() {
         });
 
         if (response.ok) {
+            // handleFetchResponse gère le téléchargement du blob
             await handleFetchResponse(response, 'edit/process');
             closeUniversalModal();
         } else {
-            alert("Erreur lors du traitement.");
+            const errorData = await response.json().catch(() => ({}));
+            alert(`Erreur lors du traitement : ${errorData.detail || "Erreur serveur"}`);
         }
     } catch (e) {
-        console.error(e);
+        console.error("Erreur Fetch Edit:", e);
+        alert("Impossible de contacter le serveur.");
     } finally {
         setBtnLoading(false);
         if (cropper) {
