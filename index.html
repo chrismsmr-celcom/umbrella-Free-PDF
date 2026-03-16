@@ -805,10 +805,6 @@
     <button id="downloadBtn" class="download-btn">Lancer l'opération</button>
 </div>
 
-
-    <button id="downloadBtn" class="download-btn">Lancer l'opération</button>
-</div>
-
 <div class="workarea">
     <div id="previewContainer" class="preview-container">
         <div class="preview-badge"><i class="fa fa-eye"></i> Aperçu</div>
@@ -2063,6 +2059,13 @@ async function confirmEdit() {
         }
     }
 }
+   if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('Service Worker Umbrella enregistré ! scope:', reg.scope))
+            .catch(err => console.log('Échec de l\'enregistrement du SW:', err));
+    });
+} 
 </script>
 </body>
 </html>
