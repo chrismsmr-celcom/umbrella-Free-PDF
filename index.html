@@ -723,6 +723,7 @@
     let currentProtectFile = null;
     let isDrawing = false;
     let sigCanvas, sigCtx;
+    let activeScanInterval = null;
     
     const pdfjsLib = window['pdfjs-dist/build/pdf'];
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1488,21 +1489,54 @@ function openToolModal(type) {
     }
 
     // SCAN
-    else if (type === 'scan') {
+   else if (type === 'scan') {
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
         title.innerText = "Numérisation Umbrella";
-        desc.innerText = "Scannez le QR Code avec votre téléphone.";
         icon.innerHTML = `<img src="https://oysdycuouodarfkmdtop.supabase.co/storage/v1/object/public/LOGO/Moniteo.png" style="height:35px; margin-bottom:10px;">`;
-        body.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; gap: 20px;">
-                <div id="qrcode" style="padding: 15px; background: #f8f8fc; border-radius: 20px; border: 1px solid #eee; min-height: 200px; display: flex; align-items: center; justify-content: center;">
-                    <i class="fa fa-circle-notch fa-spin" style="color: var(--primary); font-size: 24px;"></i>
-                </div>
-                <div style="font-size: 0.8rem; color: var(--primary); font-weight: 600;">
-                    <i class="fa fa-sync fa-spin"></i> En attente du document...
-                </div>
-            </div>`;
+
+        if (isMobile) {
+            // L'utilisateur est sur mobile : pas besoin de QR code
+            desc.innerText = "Utilisez votre appareil photo pour numériser.";
+            body.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px;">
+                    <div style="width: 80px; height: 80px; background: #f8f8fc; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary);">
+                        <i class="fa fa-camera style="font-size: 30px;"></i>
+                    </div>
+                    <button id="directScanBtn" class="action-btn" style="width: 100%; justify-content: center; background: var(--primary); color: white;">
+                        Ouvrir l'appareil photo
+                    </button>
+                </div>`;
+            
+            // Logique de redirection directe
+            const btn = body.querySelector('#directScanBtn');
+            btn.onclick = async () => {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa fa-spinner fa-spin"></i> Préparation...`;
+                try {
+                    const res = await fetch(`${BASE_URL}/scan/generate-session`);
+                    const data = await res.json();
+                    window.location.href = data.url; // Redirection vers mobile_scan.html?s=ID
+                } catch (e) {
+                    alert("Erreur de connexion au serveur.");
+                    btn.disabled = false;
+                }
+            };
+        } else {
+            // L'utilisateur est sur Desktop : on affiche le QR Code
+            desc.innerText = "Scannez le QR Code avec votre téléphone.";
+            body.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 20px;">
+                    <div id="qrcode" style="padding: 15px; background: #f8f8fc; border-radius: 20px; border: 1px solid #eee; min-height: 200px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fa fa-circle-notch fa-spin" style="color: var(--primary); font-size: 24px;"></i>
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--primary); font-weight: 600;">
+                        <i class="fa fa-sync fa-spin"></i> En attente du document...
+                    </div>
+                </div>`;
+            generateScanQRCode(); // Lance la génération + Polling
+        }
         footer.style.display = 'none';
-        generateScanQRCode();
     }
 
     // SIGN
@@ -1583,26 +1617,28 @@ async function generateScanQRCode() {
     const qrContainer = document.getElementById('qrcode');
     if (!qrContainer) return;
 
+    // Nettoyage d'un éventuel ancien intervalle
+    if (activeScanInterval) clearInterval(activeScanInterval);
+
     try {
         const res = await fetch(`${BASE_URL}/scan/generate-session`);
         const data = await res.json();
 
         qrContainer.innerHTML = "";
-        
         new QRCode(qrContainer, {
             text: data.url,
             width: 200,
             height: 200,
-            colorDark: "#311038", // Couleur identité Makem Group
+            colorDark: "#311038",
             colorLight: "#ffffff",
         });
 
-        // Utilisation d'une variable pour pouvoir stopper proprement
-        const checkInterval = setInterval(async () => {
-            // VERIFICATION : Est-ce que le modal est toujours ouvert ?
+        // Lancement du polling
+        activeScanInterval = setInterval(async () => {
             const modal = document.getElementById('universalModal');
+            // Si modal fermé, on stoppe tout
             if (!modal || modal.style.display === 'none') {
-                clearInterval(checkInterval);
+                clearInterval(activeScanInterval);
                 return;
             }
 
@@ -1611,22 +1647,17 @@ async function generateScanQRCode() {
                 const status = await check.json();
                 
                 if (status.ready) {
-                    clearInterval(checkInterval);
-                    closeUniversalModal(); // Ta fonction de fermeture globale
-                    
-                    // On attend un tout petit peu pour laisser le modal se fermer visuellement
-                    setTimeout(() => {
-                        loadScannedFileIntoPreview(status.filename);
-                    }, 300);
+                    clearInterval(activeScanInterval);
+                    closeUniversalModal();
+                    loadScannedFileIntoPreview(status.filename);
                 }
             } catch (err) {
-                // On ne stop pas au premier pet de serveur, on laisse le polling continuer
-                console.warn("Polling en cours...");
+                console.warn("Serveur en cours de réveil...");
             }
         }, 3000);
 
     } catch (e) {
-        qrContainer.innerHTML = "<p style='color:red;'>Erreur serveur.</p>";
+        qrContainer.innerHTML = "<p style='color:red;'>Erreur de génération QR.</p>";
     }
 }
 async function confirmUnlock() {
@@ -1739,6 +1770,23 @@ async function confirmSignature() {
         setBtnLoading(false);
     }
 }
+  async function startScan() {
+    // 1. Appeler ton API pour créer la session
+    const response = await fetch('/scan/generate-session');
+    const data = await response.json();
+    
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    if (isMobile) {
+        // CAS MOBILE : Redirection directe
+        window.location.href = data.url;
+    } else {
+        // CAS DESKTOP : Afficher le QR Code (avec une lib comme QRCode.js)
+        showQRCodeModal(data.url);
+        // Lancer le polling pour attendre le résultat
+        pollScanStatus(data.session_id);
+    }
+}  
 </script>
 </body>
 </html>
