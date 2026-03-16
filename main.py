@@ -4,6 +4,7 @@ import uuid
 import shutil
 import tempfile
 import mimetypes
+import time
 from typing import List
 
 # FastAPI & Responses
@@ -51,6 +52,8 @@ app.add_middleware(
 scan_sessions = {}
 STORAGE_DIR = os.path.join(tempfile.gettempdir(), "umbrella_scans")
 os.makedirs(STORAGE_DIR, exist_ok=True)
+# Durée de vie d'un scan (ex: 15 minutes)
+SCAN_EXPIRATION_TIME = 15 * 60
 
 # --- LOGIQUE GÉNÉRIQUE BATCH ---
 
@@ -200,11 +203,17 @@ async def remove_endpoint(background_tasks: BackgroundTasks, file: UploadFile = 
 # --- SCAN MOBILE ---
 
 @app.get("/scan/generate-session")
-async def generate_scan_session(request: Request):
-    session_id = uuid.uuid4().hex[:8]
-    scan_sessions[session_id] = None
+async def generate_scan_session(request: Request, background_tasks: BackgroundTasks):
+    """
+    Prépare une nouvelle session de scan et déclenche le nettoyage des anciennes.
+    """
+    background_tasks.add_task(cleanup_expired_scans)
     
-    # Utilisation d'une URL absolue pour éviter les soucis de proxy sur Render
+    session_id = uuid.uuid4().hex[:8]
+    # Initialisation de la session avec le timestamp actuel
+    scan_sessions[session_id] = {"path": None, "timestamp": time.time()}
+    
+    # Construction de l'URL absolue pour le QR Code / Mobile
     host_url = str(request.base_url).rstrip('/')
     return {
         "session_id": session_id, 
@@ -213,16 +222,17 @@ async def generate_scan_session(request: Request):
 
 @app.get("/mobile-scan", response_class=HTMLResponse)
 async def serve_mobile_scan_page(request: Request, s: str = None):
-    """Sert la page de capture mobile en injectant l'ID de session."""
-    if not s or (s not in scan_sessions and s != "test"): # "test" pour le debug
-         return "<h1>Session invalide ou expirée</h1>", 403
+    """
+    Sert l'interface de capture mobile.
+    """
+    if not s or (s not in scan_sessions and s != "test"):
+         raise HTTPException(status_code=403, detail="Session invalide ou expirée")
 
-    if os.path.exists("mobile_scan.html"):
-        with open("mobile_scan.html", "r", encoding="utf-8") as f:
-            content = f.read()
-            # On peut injecter le session_id directement dans le JS si besoin
-            return content
-    return "<h1>Erreur : Interface mobile introuvable</h1>", 404
+    page_path = "mobile_scan.html"
+    if os.path.exists(page_path):
+        with open(page_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return HTMLResponse("<h1>Erreur : Interface mobile introuvable</h1>", status_code=404)
 
 @app.post("/scan/upload-mobile/{session_id}")
 async def upload_from_mobile(
@@ -230,52 +240,67 @@ async def upload_from_mobile(
     file: UploadFile = File(...), 
     mode: str = Form("color")
 ):
-    # 1. Vérification de la session
+    """
+    Réceptionne l'image du mobile, applique l'effet scan et génère le PDF.
+    """
     if session_id not in scan_sessions:
-        print(f"❌ Session {session_id} non trouvée dans {scan_sessions.keys()}")
         raise HTTPException(status_code=404, detail="Session expirée")
 
     try:
-        # 2. Sécurisation du nom de fichier
+        # Sécurisation du fichier temporaire
         file_id = uuid.uuid4().hex[:6]
-        ext = os.path.splitext(file.filename)[1]
-        temp_img_path = os.path.join(STORAGE_DIR, f"{file_id}{ext}")
+        ext = os.path.splitext(file.filename)[1] or ".jpg"
+        temp_img_path = os.path.join(STORAGE_DIR, f"raw_{file_id}{ext}")
 
-        # 3. Sauvegarde de l'image reçue
+        # Sauvegarde sur disque pour éviter de saturer la RAM
         with open(temp_img_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # 4. Traitement via ton utilitaire Pillow
+        # Appel du traitement d'image (ton utilitaire)
+        from utils.scan import handle_scan_effect
         scanned_pdf = handle_scan_effect(temp_img_path, STORAGE_DIR, mode=mode)
 
         if scanned_pdf and os.path.exists(scanned_pdf):
-            scan_sessions[session_id] = scanned_pdf
-            # Nettoyage de l'image source
+            # Mise à jour de la session avec le chemin du PDF final
+            scan_sessions[session_id] = {
+                "path": scanned_pdf,
+                "timestamp": time.time() # Refresh du timer
+            }
+            # Nettoyage immédiat de l'image brute (raw)
             if os.path.exists(temp_img_path): os.remove(temp_img_path)
-            return {"status": "success", "message": "Document traité"}
+            
+            return {"status": "success", "message": "Document prêt"}
         
-        raise Exception("Échec handle_scan_effect")
+        raise Exception("Le traitement de l'image a échoué.")
 
     except Exception as e:
-        print(f"❌ Erreur Process Scan: {str(e)}")
-        raise HTTPException(status_code=500, detail="Erreur lors du traitement de l'image")
+        print(f"❌ Erreur Scan Mobile: {e}")
+        raise HTTPException(status_code=500, detail="Erreur interne de traitement")
 
 @app.get("/scan/check-session/{session_id}")
 async def check_session(session_id: str):
-    # On renvoie l'état pour que le PC sache quand le mobile a fini
-    file_path = scan_sessions.get(session_id)
-    if file_path and os.path.exists(file_path):
-        return {"ready": True, "filename": os.path.basename(file_path)}
+    """
+    Le PC interroge cette route pour savoir si le mobile a fini l'upload.
+    """
+    session_data = scan_sessions.get(session_id)
+    if session_data and session_data["path"] and os.path.exists(session_data["path"]):
+        return {
+            "ready": True, 
+            "filename": os.path.basename(session_data["path"])
+        }
     return {"ready": False}
 
 @app.get("/scan/get-result/{filename}")
 async def get_scan_result(filename: str, background_tasks: BackgroundTasks):
-    # Sécurité anti-path-traversal
+    """
+    Téléchargement final du PDF et suppression immédiate après envoi.
+    """
+    # Protection anti-injection de chemin
     safe_filename = os.path.basename(filename)
     file_path = os.path.join(STORAGE_DIR, safe_filename)
 
     if os.path.exists(file_path):
-        # On définit le cleanup en tâche de fond après le téléchargement
+        # Suppression du fichier dès que le téléchargement est terminé
         background_tasks.add_task(os.remove, file_path)
         return FileResponse(
             file_path, 
@@ -505,22 +530,49 @@ async def sign_document(
 ):
     temp_dir = tempfile.mkdtemp()
     try:
-        # On sauvegarde le fichier pour pouvoir appliquer le filigrane après
         in_p = os.path.join(temp_dir, file.filename)
-        file_bytes = await file.read()
+        # On sauvegarde sur disque d'abord pour préserver la RAM
+        with open(in_p, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # On lit le fichier seulement au moment du traitement
+        with open(in_p, "rb") as f:
+            file_bytes = f.read()
         
-        # Ton utilitaire doit renvoyer un buffer ou on le sauvegarde
         signed_buffer = process_pdf_signature(file_bytes, signature_base64)
         
         out_p = os.path.join(temp_dir, f"signed_{file.filename}")
         with open(out_p, "wb") as f:
             f.write(signed_buffer.getbuffer())
             
-        # On passe par handle_batch_response pour avoir le filigrane et le cleanup
         return handle_batch_response([out_p], background_tasks, temp_dir)
     except Exception as e:
-        cleanup(temp_dir)
-        raise HTTPException(500, detail=str(e))                      
+        background_tasks.add_task(cleanup, temp_dir)
+        raise HTTPException(500, detail=str(e))
+
+def cleanup_expired_scans():
+    """
+    Garbage Collector : Supprime les fichiers et les sessions expirés.
+    Empêche la saturation du stockage éphémère de Render.
+    """
+    now = time.time()
+    expired_ids = []
+
+    for sid, data in scan_sessions.items():
+        if (now - data["timestamp"]) > SCAN_EXPIRATION_TIME:
+            # Suppression du fichier physique s'il existe
+            if data["path"] and os.path.exists(data["path"]):
+                try:
+                    os.remove(data["path"])
+                except Exception as e:
+                    print(f"⚠️ Erreur nettoyage fichier session {sid}: {e}")
+            expired_ids.append(sid)
+
+    for sid in expired_ids:
+        del scan_sessions[sid]
+    if expired_ids:
+        print(f"🧹 Nettoyage : {len(expired_ids)} sessions expirées supprimées.")
+        
         # --- FRONTEND ---
 
 if os.path.exists("assets"):
