@@ -1000,7 +1000,6 @@ if (dlBtn) {
             return;
         }
 
-        // 0. Définition de la route finale
         const finalRoute = routeMapping[currentRoute] || currentRoute;
 
         // 1. INTERCEPTION POUR LES OUTILS INTERACTIFS
@@ -1016,6 +1015,17 @@ if (dlBtn) {
 
         if (currentRoute === 'edit/unlock') {
             openToolModal('unlock');
+            return;
+        }
+        // AJOUTER CECI POUR L'ÉDITEUR
+        if (currentRoute === 'edit/process') {
+            openToolModal('edit');
+            return;
+        }
+
+        // AJOUTER CECI POUR L'ORGANISATION (Si tu veux le modal grid)
+        if (currentRoute === 'organize/reorder') {
+            openToolModal('organize');
             return;
         }
 
@@ -1483,26 +1493,22 @@ function openToolModal(type) {
     }
 
     // SCAN
-   else if (type === 'scan') {
+    else if (type === 'scan') {
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        
         title.innerText = "Numérisation Umbrella";
         icon.innerHTML = `<img src="https://oysdycuouodarfkmdtop.supabase.co/storage/v1/object/public/LOGO/Moniteo.png" style="height:35px; margin-bottom:10px;">`;
 
         if (isMobile) {
-            // L'utilisateur est sur mobile : pas besoin de QR code
             desc.innerText = "Utilisez votre appareil photo pour numériser.";
             body.innerHTML = `
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px;">
                     <div style="width: 80px; height: 80px; background: #f8f8fc; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary);">
-                        <i class="fa fa-camera style="font-size: 30px;"></i>
+                        <i class="fa fa-camera" style="font-size: 30px;"></i>
                     </div>
                     <button id="directScanBtn" class="action-btn" style="width: 100%; justify-content: center; background: var(--primary); color: white;">
                         Ouvrir l'appareil photo
                     </button>
                 </div>`;
-            
-            // Logique de redirection directe
             const btn = body.querySelector('#directScanBtn');
             btn.onclick = async () => {
                 btn.disabled = true;
@@ -1510,14 +1516,13 @@ function openToolModal(type) {
                 try {
                     const res = await fetch(`${BASE_URL}/scan/generate-session`);
                     const data = await res.json();
-                    window.location.href = data.url; // Redirection vers mobile_scan.html?s=ID
+                    window.location.href = data.url;
                 } catch (e) {
                     alert("Erreur de connexion au serveur.");
                     btn.disabled = false;
                 }
             };
         } else {
-            // L'utilisateur est sur Desktop : on affiche le QR Code
             desc.innerText = "Scannez le QR Code avec votre téléphone.";
             body.innerHTML = `
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 20px;">
@@ -1528,7 +1533,7 @@ function openToolModal(type) {
                         <i class="fa fa-sync fa-spin"></i> En attente du document...
                     </div>
                 </div>`;
-            generateScanQRCode(); // Lance la génération + Polling
+            generateScanQRCode();
         }
         footer.style.display = 'none';
     }
@@ -1555,28 +1560,21 @@ function openToolModal(type) {
         setTimeout(initSignaturePad, 100);
     }
 
-    }
-    // EDIT (Rotation & Recadrage)
-    // EDIT (Rotation & Recadrage avec Cropper.js)
+    // EDIT
     else if (type === 'edit') {
         if (!selectedFiles || selectedFiles.length === 0) {
             alert("Veuillez d'abord sélectionner un fichier.");
             return;
         }
-
         title.innerText = "Éditeur Umbrella";
         desc.innerText = "Faites glisser les bords pour recadrer ou utilisez les boutons pour pivoter.";
         icon.innerHTML = `<i class="fa fa-crop-alt" style="font-size:30px; color:var(--primary);"></i>`;
-        
-        // On élargit le modal pour le confort visuel du recadrage
         content.style.maxWidth = '800px';
-
         body.innerHTML = `
             <div style="display: flex; flex-direction: column; align-items: center; gap: 15px;">
                 <div id="editPreviewContainer" style="width: 100%; max-height: 55vh; background: #f0f0f5; border-radius: 15px; overflow: hidden; border: 1px solid #eee;">
                     <img id="imgEditPreview" style="display: block; max-width: 100%;">
                 </div>
-
                 <div style="display: flex; gap: 10px; width: 100%; justify-content: center; flex-wrap: wrap; padding: 5px;">
                     <button onclick="rotatePreview(-90)" class="btn-secondary" title="Pivoter à gauche" style="width:45px; height:45px; border-radius:12px;">
                         <i class="fa fa-undo"></i>
@@ -1595,18 +1593,14 @@ function openToolModal(type) {
                         <i class="fa fa-sync-alt"></i>
                     </button>
                 </div>
-            </div>
-        `;
-
+            </div>`;
         footer.style.display = 'block';
         actionBtn.innerText = "Appliquer & Enregistrer";
         actionBtn.onclick = confirmEdit;
-
-        // On laisse un court délai pour que le DOM soit prêt avant d'initialiser Cropper
         setTimeout(() => initCropper(selectedFiles[0]), 200);
     }
 
- // --- 3. Affichage final ---
+    // --- 3. Affichage final ---
     modal.style.display = 'flex';
 }
 
