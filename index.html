@@ -1458,7 +1458,12 @@ function openToolModal(type) {
             <div id="pagesGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:20px; max-height:60vh; overflow-y:auto; padding:10px; background:#f8f8fc; border-radius:20px;"></div>`;
         footer.style.display = 'block';
         actionBtn.innerText = "Confirmer la sélection";
-        actionBtn.onclick = () => { closeUniversalModal(); dlBtn.click(); };
+        actionBtn.onclick = async () => {
+    // On ne ferme le modal qu'après avoir lancé l'action
+    // dlBtn.click() va déclencher la fonction async dlBtn.onclick que nous avons corrigée ensemble
+    await dlBtn.click(); 
+    closeUniversalModal();
+};
         
         renderPagesIntoUniversalGrid(selectedFiles[0]); 
     }
