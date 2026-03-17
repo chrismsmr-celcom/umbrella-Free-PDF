@@ -43,6 +43,7 @@ def convert_to_pdf(input_path, output_dir):
 def pdf_to_word(pdf_path, output_dir):
     try:
         base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        # On définit le chemin attendu
         output_path = os.path.join(output_dir, f"{base_name}.docx")
         
         # 1. Tentative avec pdf2docx (Meilleure fidélité structurelle)
@@ -50,18 +51,29 @@ def pdf_to_word(pdf_path, output_dir):
             cv = Converter(pdf_path)
             cv.convert(output_path, start=0, end=None)
             cv.close()
-            if os.path.exists(output_path): return output_path
-        except:
-            pass
+            if os.path.exists(output_path): 
+                return output_path
+        except Exception as e:
+            print(f"⚠️ pdf2docx a échoué, passage à LibreOffice: {e}")
 
         # 2. Secours avec LibreOffice
         soffice = get_soffice_path()
         if soffice:
-            subprocess.run([soffice, "--headless", "--convert-to", "docx", "--outdir", output_dir, pdf_path], check=True)
-            return output_path
+            # IMPORTANT: LibreOffice utilise son propre nommage, on vérifie après
+            subprocess.run([
+                soffice, "--headless", "--invisible", 
+                "--convert-to", "docx", 
+                "--outdir", output_dir, 
+                pdf_path
+            ], check=True, capture_output=True)
+            
+            # On vérifie si le fichier existe bien là où LibreOffice l'a créé
+            if os.path.exists(output_path):
+                return output_path
+                
         return None
     except Exception as e:
-        print(f"❌ Erreur PDF to Word: {e}")
+        print(f"❌ Erreur critique PDF to Word: {e}")
         return None
 
 # --- PDF -> EXCEL (FIDÉLITÉ MAX) ---
