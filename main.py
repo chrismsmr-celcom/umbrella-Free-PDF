@@ -704,6 +704,43 @@ async def unlock_pdf_endpoint(
         cleanup(temp_dir)
         raise HTTPException(500, detail=str(e))
 
+@app.post("/edit/translate")
+async def translate_pdf_endpoint(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    target_lang: str = Form("en"),
+    layout: str = Form("layout") # 'layout' (conserver) ou 'text' (uniquement texte)
+):
+    temp_dir = tempfile.mkdtemp()
+    try:
+        in_p = os.path.join(temp_dir, file.filename)
+        with open(in_p, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        # On importe la fonction qu'on a créée dans utils/translate.py
+        from utils.translate import handle_translation
+        
+        # On lance la traduction (Open Source / Lingva)
+        # On passe layout pour que handle_translation sache s'il doit garder le style
+        result_pdf = await handle_translation(in_p, temp_dir, target_lang, layout)
+
+        if result_pdf and os.path.exists(result_pdf):
+            # On nettoie le dossier après l'envoi
+            background_tasks.add_task(cleanup, temp_dir)
+            
+            return FileResponse(
+                path=result_pdf,
+                filename=f"translated_{target_lang}_{file.filename}",
+                media_type="application/pdf"
+            )
+        
+        raise Exception("La génération du PDF traduit a échoué.")
+
+    except Exception as e:
+        cleanup(temp_dir)
+        print(f"❌ Erreur endpoint Traduction: {e}")
+        raise HTTPException(500, detail=str(e))
+
 @app.post("/edit/intelligence")
 async def ai_pdf_analysis(
     file: UploadFile = File(...),
