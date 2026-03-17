@@ -1,14 +1,17 @@
 import os
 import requests
 import pdfplumber
+import urllib.parse
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 
-# Si tu lances LibreTranslate en Docker sur ton serveur (ex: Render ou VPS)
-# Remplace par "http://localhost:5000/translate" si c'est en local
 LIBRETRANSLATE_URL = os.getenv("LIBRETRANSLATE_URL", "https://libretranslate.de/translate")
 
-async def handle_translation(input_path, temp_dir, target_lang):
+async def handle_translation(input_path, temp_dir, target_lang, layout="text"):
+    """
+    Gère la traduction OS. 
+    Note : 'layout' est ici simplifié pour Umbrella.
+    """
     output_path = os.path.join(temp_dir, f"translated_{target_lang}.pdf")
     
     try:
@@ -23,19 +26,69 @@ async def handle_translation(input_path, temp_dir, target_lang):
         if not text_content.strip():
             return None
 
-        # 2. Traduction via Lingva (Open Source API)
-        # On peut switcher sur libretranslate_request si tu préfères ton Docker
-        translated_text = await lingva_translate(text_content, target_lang)
+        # 2. Traduction par blocs (indispensable pour les API gratuites)
+        # On découpe pour éviter les erreurs de longueur d'URL (414)
+        paragraphs = text_content.split('\n')
+        translated_parts = []
+        
+        current_chunk = ""
+        for p in paragraphs:
+            if len(current_chunk) + len(p) < 1500: # Limite prudente pour Lingva
+                current_chunk += p + "\n"
+            else:
+                translated_parts.append(await lingva_translate(current_chunk, target_lang))
+                current_chunk = p + "\n"
+        
+        if current_chunk:
+            translated_parts.append(await lingva_translate(current_chunk, target_lang))
+            
+        final_text = "".join(translated_parts)
 
-        # 3. Reconstruction du PDF
+        # 3. Reconstruction du PDF (Simple pour l'instant)
+        return await generate_pdf_from_text(final_text, output_path)
+
+    except Exception as e:
+        print(f"❌ Erreur Traduction OS: {e}")
+        return None
+
+async def lingva_translate(text, target_lang):
+    """Utilise l'API Lingva avec fallback"""
+    if not text.strip(): return ""
+    try:
+        source_lang = "auto"
+        encoded_text = urllib.parse.quote(text)
+        url = f"https://lingva.ml/api/v1/{source_lang}/{target_lang}/{encoded_text}"
+        
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        return r.json().get("translation", text)
+    except Exception as e:
+        print(f"⚠️ Lingva fail, essai LibreTranslate: {e}")
+        return await libretranslate_request(text, target_lang)
+
+async def libretranslate_request(text, target_lang):
+    try:
+        payload = {
+            "q": text,
+            "source": "auto",
+            "target": target_lang,
+            "format": "text"
+        }
+        r = requests.post(LIBRETRANSLATE_URL, json=payload, timeout=15)
+        return r.json().get("translatedText", text)
+    except:
+        return text
+
+async def generate_pdf_from_text(text, output_path):
+    """Helper pour générer le PDF traduit proprement"""
+    try:
         c = canvas.Canvas(output_path, pagesize=A4)
         width, height = A4
         text_object = c.beginText(50, height - 50)
         text_object.setFont("Helvetica", 10)
         
-        for line in translated_text.split('\n'):
-            # Découpage pour pas que ça dépasse du papier
-            limit = 90
+        for line in text.split('\n'):
+            limit = 95
             for i in range(0, len(line), limit):
                 text_object.textLine(line[i:i+limit])
             
@@ -48,38 +101,6 @@ async def handle_translation(input_path, temp_dir, target_lang):
         c.drawText(text_object)
         c.save()
         return output_path
-
     except Exception as e:
-        print(f"❌ Erreur Traduction OS: {e}")
+        print(f"❌ Erreur génération PDF: {e}")
         return None
-
-async def lingva_translate(text, target_lang):
-    """Utilise l'API Lingva (Open Source)"""
-    try:
-        # Lingva limite parfois la taille par requête, on découpe par sécurité
-        source_lang = "auto"
-        # Nettoyage du texte pour l'URL
-        import urllib.parse
-        encoded_text = urllib.parse.quote(text[:2000]) # On limite à 2000 carcs par requête
-        
-        url = f"https://lingva.ml/api/v1/{source_lang}/{target_lang}/{encoded_text}"
-        r = requests.get(url, timeout=10)
-        res = r.json()
-        return res.get("translation", text)
-    except:
-        # Si Lingva fail, on peut tenter LibreTranslate en local
-        return await libretranslate_request(text, target_lang)
-
-async def libretranslate_request(text, target_lang):
-    """Utilise ton instance Docker LibreTranslate"""
-    try:
-        payload = {
-            "q": text,
-            "source": "auto",
-            "target": target_lang,
-            "format": "text"
-        }
-        r = requests.post(LIBRETRANSLATE_URL, json=payload, timeout=15)
-        return r.json().get("translatedText", text)
-    except:
-        return text
