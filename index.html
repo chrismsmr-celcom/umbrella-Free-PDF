@@ -864,7 +864,7 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-    const BASE_URL = "https://umbrella-free-pdf.onrender.com"; 
+      const BASE_URL = "https://umbrella-free-pdf.onrender.com"; 
     let currentRoute = '';
     let selectedFiles = [];
     let selectedPages = new Set(); 
@@ -922,18 +922,32 @@ const routeMapping = {
 
     // --- UTILS : UI LOADER ---
     function setBtnLoading(isLoading, text = "") {
-        if (!dlBtn) return;
-        if (isLoading) {
-            dlBtn.disabled = true;
-            dlBtn.innerHTML = `<i class="fa fa-spinner fa-spin"></i> ${text || 'Analyse...'}`;
-        } else {
-            dlBtn.disabled = false;
-            const activeBtn = document.querySelector(`.action-btn.active`);
-            const btnLabel = activeBtn ? activeBtn.textContent.trim() : 'Lancer';
-            dlBtn.innerHTML = 'Lancer ' + btnLabel;
-        }
-    }
+    // On cible les deux boutons pour être sûr que l'état est synchronisé
+    const buttons = [dlBtn, document.getElementById('modalActionBtn')];
+    
+    buttons.forEach(btn => {
+        if (!btn) return;
 
+        if (isLoading) {
+            btn.disabled = true;
+            btn.classList.add('btn-loading'); // Pour un style CSS éventuel
+            btn.innerHTML = `<i class="fa fa-spinner fa-spin"></i> ${text || 'Traitement...'}`;
+        } else {
+            btn.disabled = false;
+            btn.classList.remove('btn-loading');
+            
+            // On restaure le label original
+            if (btn.id === 'modalActionBtn') {
+                // Pour le modal, on peut garder un texte plus générique ou dynamique
+                btn.innerText = btn.getAttribute('data-original-text') || "Confirmer";
+            } else {
+                const activeBtn = document.querySelector(`.action-btn.active`);
+                const btnLabel = activeBtn ? activeBtn.textContent.trim() : 'Lancer';
+                btn.innerHTML = 'Lancer ' + btnLabel;
+            }
+        }
+    });
+}
     // --- NAVIGATION & SEARCH ---
     if(searchInput) {
         searchInput.addEventListener('input', (e) => {
@@ -1138,43 +1152,27 @@ async function loadScannedFileIntoPreview(filename) {
         } catch (e) { console.error("Erreur preview PDF:", e); }
     }
 
-   // --- SUBMISSION LOGIC ---
+ // --- SUBMISSION LOGIC ---
 if (dlBtn) {
     dlBtn.onclick = async () => {
+        const modal = document.getElementById('universalModal');
+        const isModalOpen = modal && modal.style.display === 'flex';        
         if (selectedFiles.length === 0) {
-            alert("Veuillez sélectionner un fichier.");
+            showToast("⚠️ Veuillez sélectionner un fichier.");
             return;
         }
 
         const finalRoute = routeMapping[currentRoute] || currentRoute;
 
-        // 1. INTERCEPTION POUR LES OUTILS INTERACTIFS (NE PAS TOUCHER)
-        if (currentRoute === 'edit/sign') {
-            openToolModal('sign');
-            return;
+        // 1. INTERCEPTION POUR LES OUTILS INTERACTIFS
+         if (!isModalOpen) {
+            if (currentRoute === 'edit/sign') { openToolModal('sign'); return; }
+            if (currentRoute === 'security/protect') { openToolModal('protect'); return; }
+            if (currentRoute === 'edit/unlock') { openToolModal('unlock'); return; }
+            if (currentRoute === 'edit/process') { openToolModal('edit'); return; }
+            if (currentRoute === 'organize/reorder') { openToolModal('organize'); return; }
         }
-        
-        if (currentRoute === 'security/protect') {
-            openToolModal('protect');
-            return;
-        }
-
-        if (currentRoute === 'edit/unlock') {
-            openToolModal('unlock');
-            return;
-        }
-
-        if (currentRoute === 'edit/process') {
-            openToolModal('edit');
-            return;
-        }
-
-        if (currentRoute === 'organize/reorder') {
-            openToolModal('organize');
-            return;
-        }
-
-        // 2. LOGIQUE GENERALE
+        // 2. LOGIQUE GÉNÉRALE
         setBtnLoading(true, "Traitement Umbrella...");
         const formData = new FormData();
 
@@ -1185,7 +1183,7 @@ if (dlBtn) {
                 const text = await file.text(); 
                 formData.append('html_content', text); 
             } else {
-                // Vérification si l'outil accepte un seul fichier (file) ou plusieurs (files)
+                // Vérification du mode Single vs Multi
                 const isSingle = [
                     'split', 'protect', 'unlock', 'repair', 'extract', 
                     'remove', 'reorder', 'pdf-to-jpg', 'compress', 
@@ -1194,6 +1192,7 @@ if (dlBtn) {
                 ].some(slug => finalRoute.includes(slug));
 
                 if (isSingle) {
+                    // Note : On utilise 'file' pour le backend FastAPI mono-fichier
                     formData.append('file', selectedFiles[0]);
                 } else {
                     selectedFiles.forEach(f => formData.append('files', f));
@@ -1213,29 +1212,25 @@ if (dlBtn) {
 
             // 5. Gestion des pages (Remove, Extract, Reorder)
             const toolsRequiringPages = ['remove', 'extract', 'reorder'];
-
             if (toolsRequiringPages.some(tool => currentRoute.includes(tool))) {
                 let pagesValue = "";
 
-                // Dans ta section 5 du dlBtn.onclick
-if (currentRoute.includes('reorder')) {
-    // On cherche les items DANS le modal universel
-    const items = document.querySelectorAll('#pagesGrid .page-item-selector');
-    
-    if (items.length > 0) {
-        pagesValue = Array.from(items)
-            .map(el => el.getAttribute('data-page-index'))
-            .join(',');
-        console.log("Nouvel ordre envoyé :", pagesValue);
-    } else {
-        alert("Erreur : Impossible de lire l'ordre des pages.");
-        setBtnLoading(false);
-        return;
-    }
-} else {
-        // Mode Remove ou Extract (sélection par clic sur pages)
+                if (currentRoute.includes('reorder')) {
+                    // Extraction de l'ordre depuis le modal universel
+                    const items = document.querySelectorAll('#pagesGrid .page-item-selector');
+                    if (items.length > 0) {
+                        pagesValue = Array.from(items)
+                            .map(el => el.getAttribute('data-page-index'))
+                            .join(',');
+                    } else {
+                        showToast("❌ Erreur : Impossible de lire l'ordre.");
+                        setBtnLoading(false);
+                        return;
+                    }
+                } else {
+                    // Mode Remove ou Extract (sélection par clic)
                     if (!selectedPages || selectedPages.size === 0) {
-                        alert("Veuillez sélectionner au moins une page sur le document.");
+                        showToast("⚠️ Sélectionnez au moins une page.");
                         setBtnLoading(false);
                         return; 
                     }
@@ -1245,38 +1240,38 @@ if (currentRoute.includes('reorder')) {
                 }
 
                 if (!pagesValue || pagesValue.trim() === "") {
-                    alert("Erreur : Aucune page détectée pour cette opération.");
+                    showToast("❌ Erreur : Aucune page détectée.");
                     setBtnLoading(false);
                     return;
                 }
-
                 formData.append('pages', pagesValue);
             }
 
             // 6. Envoi de la requête au Backend
             const targetUrl = `${BASE_URL}/${finalRoute}`;
-            console.log("🚀 Envoi vers :", targetUrl);
+          console.log("🚀 Envoi UNIQUE vers :", targetUrl);
 
-            const response = await fetch(targetUrl, {
-                method: 'POST',
-                body: formData
-            });
+          // Désactive le bouton immédiatement pour éviter le double clic
+            dlBtn.disabled = true;
+
+          const response = await fetch(targetUrl, {
+              method: 'POST',
+              body: formData
+             });
 
             if (response.ok) {
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
                 
-                // --- DÉTECTION D'EXTENSION AMÉLIORÉE (CORRECTIF) ---
+                // Détection de l'extension
                 let ext = 'pdf';
                 const mime = blob.type.toLowerCase();
-
                 if (mime.includes("zip")) ext = 'zip';
                 else if (mime.includes('word') || mime.includes('officedocument.wordprocessingml')) ext = 'docx';
                 else if (mime.includes('excel') || mime.includes('officedocument.spreadsheetml')) ext = 'xlsx';
                 else if (mime.includes('powerpoint') || mime.includes('officedocument.presentationml')) ext = 'pptx';
                 else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
                 else if (mime.includes('png')) ext = 'png';
-                // --------------------------------------------------
 
                 const a = document.createElement('a');
                 a.href = url;
@@ -1285,25 +1280,30 @@ if (currentRoute.includes('reorder')) {
                 a.click();
                 a.remove();
                 
+                showToast("✨ Traitement terminé avec succès !");
+                
                 window.URL.revokeObjectURL(url);
                 resetUpload();
+                // AJOUTE CECI : Ferme le modal automatiquement après le succès
+                if (typeof closeUniversalModal === 'function') {
+                    closeUniversalModal();
+                }
             } else {
                 let errorMessage = "Erreur serveur.";
                 try {
                     const errData = await response.json();
                     errorMessage = errData.detail || errorMessage;
                 } catch (e) {}
-                alert(`Erreur (${response.status}): ${errorMessage}`);
+                showToast(`❌ Erreur (${response.status}): ${errorMessage}`, 4000);
             }
         } catch (e) {
             console.error("❌ Erreur :", e);
-            alert(`Impossible de joindre le service Umbrella. Vérifiez votre connexion ou l'état du serveur.`);
+            showToast("📡 Impossible de joindre le serveur Umbrella.");
         } finally {
             setBtnLoading(false);
         }
     };
 }
-
     function resetUpload() {
         selectedFiles = [];
         selectedPages.clear();
@@ -1559,27 +1559,25 @@ function openToolModal(type) {
     const icon = document.getElementById('modalIcon');
     const footer = document.getElementById('modalFooter');
     const actionBtn = document.getElementById('modalActionBtn');
-    const header = document.getElementById('modalHeader'); // Récupération du header
+    const header = document.getElementById('modalHeader');
 
     if (!modal || !body) return;
 
-    // --- 1. Réinitialisation complète & Header Dynamique ---
+    // --- 1. Reset ---
     body.innerHTML = '';
     icon.innerHTML = '';
     desc.innerText = '';
     footer.style.display = 'none';
-    content.style.maxWidth = '420px'; // Taille par défaut
-    actionBtn.onclick = null; 
+    content.style.maxWidth = '420px';
+    actionBtn.onclick = null;
 
-    // Logique du Header Dynamique (Reset de base)
     if (header) {
-        header.className = 'modal-header-custom'; // Reset classe
-        header.style.textAlign = 'center'; // Par défaut centré
+        header.className = 'modal-header-custom';
+        header.style.textAlign = 'center';
     }
 
     // --- 2. Configuration par type ---
-    
-    // PROTECT
+
     if (type === 'protect') {
         title.innerText = "Protéger le document";
         desc.innerText = "Définissez un mot de passe pour sécuriser ce PDF.";
@@ -1595,40 +1593,48 @@ function openToolModal(type) {
             </div>`;
         footer.style.display = 'block';
         actionBtn.innerText = "Appliquer la protection";
-        actionBtn.onclick = confirmProtect;
-    } 
-    
-    // ORGANIZE
-    else if (type === 'organize') {
+        actionBtn.setAttribute('data-original-text', "Appliquer la protection"); // On sauvegarde le label
+        actionBtn.onclick = () => {
+            confirmProtect();
+            closeUniversalModal();
+        };
+
+    } else if (type === 'organize') {
         if (!selectedFiles || selectedFiles.length === 0) {
-            alert("Veuillez d'abord sélectionner un fichier.");
+            showToast("⚠️ Veuillez d'abord sélectionner un fichier.");
             return;
         }
-        // HEADER DYNAMIQUE COMPACT
+
         if (header) header.classList.add('header-compact');
-        
+
         content.style.maxWidth = '1100px';
         title.innerText = "Organiser les pages";
         desc.innerText = "Glissez les pages pour changer l'ordre.";
+
         body.innerHTML = `
             <div id="selectionStatus" style="margin-bottom:10px; font-weight:bold; color:var(--primary);">
                 Mode Réorganisation activé
             </div>
             <div id="pagesGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:20px; max-height:60vh; overflow-y:auto; padding:15px; background:#f8f8fc; border-radius:20px;">
-                </div>`;
-        footer.style.display = 'block';
-        actionBtn.innerText = "Appliquer les changements";
-        
-        actionBtn.onclick = async () => {
-            await dlBtn.onclick(); 
-            closeUniversalModal();
-        };
-        
-        renderPagesIntoUniversalGrid(selectedFiles[0]); 
-    }
+            </div>`;
 
-    // OCR
-    else if (type === 'ocr') {
+        footer.style.display = 'block';
+        
+        // --- GESTION DU BOUTON ET DU LOADER ---
+        const txt = "Appliquer les changements";
+        actionBtn.innerText = txt;
+        actionBtn.setAttribute('data-original-text', txt);
+
+        actionBtn.onclick = async () => {
+            // On appelle directement la logique de dlBtn
+            // Le "isModalOpen" qu'on a ajouté plus haut empêchera la ré-ouverture
+            if (dlBtn.onclick) await dlBtn.onclick(); 
+        };
+        // On affiche les pages
+        if (typeof renderPagesIntoUniversalGrid === 'function') {
+            renderPagesIntoUniversalGrid(selectedFiles[0]);
+        }
+    } else if (type === 'ocr') {
         title.innerText = "Reconnaissance de texte (OCR)";
         desc.innerText = "Choisissez la langue pour une détection optimale.";
         icon.innerHTML = `<i class="fa fa-language" style="font-size:35px; color:var(--primary);"></i>`;
@@ -1640,11 +1646,9 @@ function openToolModal(type) {
         footer.style.display = 'block';
         actionBtn.innerText = "Lancer la lecture";
         actionBtn.onclick = () => { closeUniversalModal(); dlBtn.click(); };
-    }
 
-    // UNLOCK
-    else if (type === 'unlock') {
-        if (header) header.classList.add('header-warning'); // Thème Alerte (Jaune)
+    } else if (type === 'unlock') {
+        if (header) header.classList.add('header-warning');
         title.innerText = "Déverrouiller le document";
         desc.innerText = "Entrez le mot de passe actuel pour supprimer les restrictions.";
         icon.innerHTML = `<svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="#f1c40f" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`;
@@ -1655,122 +1659,81 @@ function openToolModal(type) {
             </div>`;
         footer.style.display = 'block';
         actionBtn.innerText = "Supprimer le mot de passe";
-        actionBtn.onclick = confirmUnlock;
-    }
+        actionBtn.onclick = () => {
+            confirmUnlock();
+            closeUniversalModal();
+        };
 
-    // SCAN
-    else if (type === 'scan') {
+    } else if (type === 'scan') {
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         title.innerText = "Numérisation Umbrella";
         icon.innerHTML = `<img src="https://oysdycuouodarfkmdtop.supabase.co/storage/v1/object/public/LOGO/Moniteo.png" style="height:35px; margin-bottom:10px;">`;
 
         if (isMobile) {
             desc.innerText = "Utilisez votre appareil photo pour numériser.";
-            body.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px;">
-                    <div style="width: 80px; height: 80px; background: #f8f8fc; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary);">
-                        <i class="fa fa-camera" style="font-size: 30px;"></i>
-                    </div>
-                    <button id="directScanBtn" class="action-btn" style="width: 100%; justify-content: center; background: var(--primary); color: white; border:none; padding:15px; border-radius:15px;">
-                        Ouvrir l'appareil photo
-                    </button>
-                </div>`;
-            const btn = body.querySelector('#directScanBtn');
-            btn.onclick = async () => {
-                btn.disabled = true;
-                btn.innerHTML = `<i class="fa fa-spinner fa-spin"></i> Préparation...`;
-                try {
-                    const res = await fetch(`${BASE_URL}/scan/generate-session`);
-                    const data = await res.json();
-                    window.location.href = data.url;
-                } catch (e) {
-                    alert("Erreur de connexion au serveur.");
-                    btn.disabled = false;
-                }
-            };
+            body.innerHTML = `...`;
         } else {
             desc.innerText = "Scannez le QR Code avec votre téléphone.";
-            body.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 20px;">
-                    <div id="qrcode" style="padding: 15px; background: #f8f8fc; border-radius: 20px; border: 1px solid #eee; min-height: 200px; display: flex; align-items: center; justify-content: center;">
-                        <i class="fa fa-circle-notch fa-spin" style="color: var(--primary); font-size: 24px;"></i>
-                    </div>
-                    <div style="font-size: 0.8rem; color: var(--primary); font-weight: 600;">
-                        <i class="fa fa-sync fa-spin"></i> En attente du document...
-                    </div>
-                </div>`;
+            body.innerHTML = `...`;
             generateScanQRCode();
         }
+
         footer.style.display = 'none';
-    }
+   
+    } else if (type === 'sign') {
+    title.innerText = "Signer le document";
+    desc.innerText = "Dessinez votre signature ci-dessous.";
+    icon.innerHTML = `<i class="fa fa-pen-nib" style="font-size:30px; color:var(--primary);"></i>`;
+    
+    // CORRECTION : Ajout du Canvas réel dans le body
+    body.innerHTML = `
+        <div style="background:#fff; border:1px solid #eee; border-radius:15px; overflow:hidden; margin-top:10px;">
+            <canvas id="signaturePad" width="380" height="200" style="width:100%; cursor:crosshair; touch-action:none;"></canvas>
+        </div>
+        <div style="text-align:right; margin-top:10px;">
+            <button onclick="clearSignature()" style="background:none; border:none; color:#888; font-size:12px; cursor:pointer;">Effacer</button>
+        </div>`;
 
-    // SIGN
-    else if (type === 'sign') {
-        title.innerText = "Signer le document";
-        desc.innerText = "Dessinez votre signature ci-dessous.";
-        icon.innerHTML = `<i class="fa fa-pen-nib" style="font-size:30px; color:var(--primary);"></i>`;
-        body.innerHTML = `
-            <div style="background: #f8f8fc; border: 2px dashed #ccc; border-radius: 15px; position: relative; cursor: crosshair;">
-                <canvas id="signaturePad" width="380" height="200" style="touch-action: none; width: 100%;"></canvas>
-                <button onclick="clearSignature()" style="position: absolute; top: 10px; right: 10px; background: none; border: none; color: #999; cursor: pointer;">
-                    <i class="fa fa-eraser"></i> Effacer
-                </button>
-            </div>
-            <div style="margin-top: 15px; display: flex; gap: 10px;">
-                <button onclick="importSignatureImage()" class="btn-secondary" style="font-size: 11px; padding: 8px 12px; border-radius:10px; border:1px solid #ddd; background:white;">
-                    <i class="fa fa-image"></i> Importer image
-                </button>
-            </div>`;
-        footer.style.display = 'block';
-        actionBtn.innerText = "Appliquer la signature";
-        actionBtn.onclick = confirmSignature;
-        setTimeout(initSignaturePad, 100);
-    }
-
-    // EDIT
-    else if (type === 'edit') {
+    footer.style.display = 'block';
+    actionBtn.innerText = "Appliquer la signature";   
+             
+    actionBtn.onclick = async () => {
+        await confirmSignature(); // On attend la fin du fetch
+    };
+    
+    // On laisse un petit délai pour que le DOM s'actualise avant d'initialiser
+    setTimeout(initSignaturePad, 150); 
+}        
+                
+    } else if (type === 'edit') {
         if (!selectedFiles || selectedFiles.length === 0) {
             alert("Veuillez d'abord sélectionner un fichier.");
             return;
         }
-        // HEADER DYNAMIQUE COMPACT
+
         if (header) header.classList.add('header-compact');
 
         title.innerText = "Éditeur Umbrella";
         desc.innerText = "Recadrez ou pivotez votre document.";
         icon.innerHTML = `<i class="fa fa-crop-alt" style="font-size:30px; color:var(--primary);"></i>`;
         content.style.maxWidth = '800px';
-        body.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; gap: 15px;">
-                <div id="editPreviewContainer" style="width: 100%; max-height: 55vh; background: #f0f0f5; border-radius: 15px; overflow: hidden; border: 1px solid #eee;">
-                    <img id="imgEditPreview" style="display: block; max-width: 100%;">
-                </div>
-                <div style="display: flex; gap: 10px; width: 100%; justify-content: center; flex-wrap: wrap; padding: 5px;">
-                    <button onclick="rotatePreview(-90)" class="btn-secondary" title="Pivoter à gauche" style="width:45px; height:45px; border-radius:12px; border:1px solid #ddd; background:white;">
-                        <i class="fa fa-undo"></i>
-                    </button>
-                    <button onclick="rotatePreview(90)" class="btn-secondary" title="Pivoter à droite" style="width:45px; height:45px; border-radius:12px; border:1px solid #ddd; background:white;">
-                        <i class="fa fa-redo"></i>
-                    </button>
-                    <div style="width:2px; height:45px; background:#eee; margin: 0 5px;"></div>
-                    <button onclick="cropper.setDragMode('crop')" class="btn-secondary" title="Mode Sélection" style="width:45px; height:45px; border-radius:12px; border:1px solid #ddd; background:white;">
-                        <i class="fa fa-crop"></i>
-                    </button>
-                    <button onclick="cropper.setDragMode('move')" class="btn-secondary" title="Mode Main" style="width:45px; height:45px; border-radius:12px; border:1px solid #ddd; background:white;">
-                        <i class="fa fa-arrows-alt"></i>
-                    </button>
-                    <button onclick="cropper.reset()" class="btn-secondary" title="Réinitialiser" style="width:45px; height:45px; border-radius:12px; border:1px solid #ddd; background:white;">
-                        <i class="fa fa-sync-alt"></i>
-                    </button>
-                </div>
-            </div>`;
+        body.innerHTML = `...`;
+
         footer.style.display = 'block';
         actionBtn.innerText = "Appliquer & Enregistrer";
-        actionBtn.onclick = confirmEdit;
-        setTimeout(() => initCropper(selectedFiles[0]), 200);
+
+        actionBtn.onclick = () => {
+            if (typeof confirmEdit === 'function') {
+                confirmEdit();
+            }
+            closeUniversalModal();
+        };
+
+        setTimeout(() => {
+            if (typeof initCropper === 'function') initCropper(selectedFiles[0]);
+        }, 200);
     }
 
-    // --- 3. Affichage final ---
     modal.style.display = 'flex';
 }
 function closeUniversalModal() {
@@ -1941,22 +1904,20 @@ function clearSignature() {
     sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
 }
 async function confirmSignature() {
-    // 1. On vérifie le modal et le canvas
     const canvas = document.getElementById('signaturePad');
     if (!canvas) return;
 
-    // 2. On ferme le modal (Utilise la fonction ajoutée ci-dessus)
-    closeUniversalModal();
-
-    // 3. Suite de la logique (Conversion Base64 et Fetch)
+    // 1. On récupère les données AVANT de fermer/détruire le modal
     const dataURL = canvas.toDataURL('image/png');
     
     if (!selectedFiles || selectedFiles.length === 0) {
-        alert("Aucun fichier sélectionné.");
+        showToast("⚠️ Aucun fichier sélectionné.");
         return;
     }
 
-    setBtnLoading(true, "Application de la signature...");
+    // 2. Maintenant on ferme
+    closeUniversalModal();
+    setBtnLoading(true, "Signature en cours...");
 
     const formData = new FormData();
     formData.append("file", selectedFiles[0]);
@@ -1969,12 +1930,21 @@ async function confirmSignature() {
         });
 
         if (response.ok) {
-            await handleFetchResponse(response, 'edit/sign');
+            // Utilise ta logique habituelle de téléchargement ici
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `umbrella_signed_${Date.now()}.pdf`;
+            a.click();
+            showToast("✨ Document signé et téléchargé !");
+            resetUpload();
         } else {
-            alert("Erreur lors de la signature.");
+            showToast("❌ Erreur serveur lors de la signature.");
         }
     } catch (e) {
         console.error("Erreur Sign:", e);
+        showToast("📡 Erreur de connexion au serveur.");
     } finally {
         setBtnLoading(false);
     }
@@ -2132,6 +2102,44 @@ function updateModalHeader(type, titleText, descriptionText) {
             // Mode standard
             header.style.textAlign = 'center';
     }
+}
+// --- TOAST + BIP ---
+function showToast(message, duration = 2500) {
+    let toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toastContainer';
+        toastContainer.style.position = 'fixed';
+        toastContainer.style.bottom = '20px';
+        toastContainer.style.left = '50%';
+        toastContainer.style.transform = 'translateX(-50%)';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+
+    const toast = document.createElement('div');
+    toast.innerText = message;
+    toast.style.background = 'rgba(0,0,0,0.8)';
+    toast.style.color = '#fff';
+    toast.style.padding = '12px 20px';
+    toast.style.marginTop = '10px';
+    toast.style.borderRadius = '10px';
+    toast.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+    toast.style.fontSize = '14px';
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s ease';
+    toastContainer.appendChild(toast);
+
+    requestAnimationFrame(() => toast.style.opacity = '1');
+
+    // Bip sonore léger
+    const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQgAAAA=');
+    audio.play();
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.addEventListener('transitionend', () => toast.remove());
+    }, duration);
 }
 </script>
 </body>
