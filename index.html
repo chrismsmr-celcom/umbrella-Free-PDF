@@ -864,7 +864,7 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-      const BASE_URL = "https://umbrella-free-pdf.onrender.com"; 
+     const BASE_URL = "https://umbrella-free-pdf.onrender.com"; 
     let currentRoute = '';
     let selectedFiles = [];
     let selectedPages = new Set(); 
@@ -1680,31 +1680,28 @@ function openToolModal(type) {
 
         footer.style.display = 'none';
    
-    } else if (type === 'sign') {
-    title.innerText = "Signer le document";
-    desc.innerText = "Dessinez votre signature ci-dessous.";
-    icon.innerHTML = `<i class="fa fa-pen-nib" style="font-size:30px; color:var(--primary);"></i>`;
-    
-    // CORRECTION : Ajout du Canvas réel dans le body
-    body.innerHTML = `
-        <div style="background:#fff; border:1px solid #eee; border-radius:15px; overflow:hidden; margin-top:10px;">
-            <canvas id="signaturePad" width="380" height="200" style="width:100%; cursor:crosshair; touch-action:none;"></canvas>
-        </div>
-        <div style="text-align:right; margin-top:10px;">
-            <button onclick="clearSignature()" style="background:none; border:none; color:#888; font-size:12px; cursor:pointer;">Effacer</button>
-        </div>`;
+  } else if (type === 'sign') {
+        title.innerText = "Signer le document";
+        desc.innerText = "Dessinez votre signature ci-dessous.";
+        icon.innerHTML = `<i class="fa fa-pen-nib" style="font-size:30px; color:var(--primary);"></i>`;
+        
+        body.innerHTML = `
+            <div style="background:#fff; border:1px solid #eee; border-radius:15px; overflow:hidden; margin-top:10px;">
+                <canvas id="signaturePad" width="380" height="200" style="width:100%; cursor:crosshair; touch-action:none;"></canvas>
+            </div>
+            <div style="text-align:right; margin-top:10px;">
+                <button onclick="clearSignature()" style="background:none; border:none; color:#888; font-size:12px; cursor:pointer;">Effacer</button>
+            </div>`;
 
-    footer.style.display = 'block';
-    actionBtn.innerText = "Appliquer la signature";   
-             
-    actionBtn.onclick = async () => {
-        await confirmSignature(); // On attend la fin du fetch
-    };
-    
-    // On laisse un petit délai pour que le DOM s'actualise avant d'initialiser
-    setTimeout(initSignaturePad, 150); 
-}        
-                
+        footer.style.display = 'block';
+        actionBtn.innerText = "Appliquer la signature";     
+                 
+        actionBtn.onclick = async () => {
+            await confirmSignature();
+        };
+        
+        setTimeout(initSignaturePad, 150); 
+
     } else if (type === 'edit') {
         if (!selectedFiles || selectedFiles.length === 0) {
             alert("Veuillez d'abord sélectionner un fichier.");
@@ -1714,37 +1711,60 @@ function openToolModal(type) {
         if (header) header.classList.add('header-compact');
 
         title.innerText = "Éditeur Umbrella";
-        desc.innerText = "Recadrez ou pivotez votre document.";
+        desc.innerText = "Recadrez ou pivotez votre document pour un rendu parfait.";
         icon.innerHTML = `<i class="fa fa-crop-alt" style="font-size:30px; color:var(--primary);"></i>`;
-        content.style.maxWidth = '800px';
-        body.innerHTML = `...`;
+        content.style.maxWidth = '900px';
+        
+        body.innerHTML = `
+            <div id="editor-container" style="min-height: 400px; display: flex; flex-direction: column; align-items: center;">
+                <div class="cropper-wrapper" style="width: 100%; max-height: 60vh; overflow: hidden;">
+                    <img id="imageToEdit" style="max-width: 100%; display: block;">
+                </div>
+                <div class="editor-controls" style="margin-top: 15px; display: flex; gap: 10px;">
+                    <button class="btn-tool" onclick="cropper.rotate(-90)"><i class="fa fa-undo"></i> -90°</button>
+                    <button class="btn-tool" onclick="cropper.rotate(90)"><i class="fa fa-redo"></i> +90°</button>
+                    <button class="btn-tool" onclick="cropper.reset()"><i class="fa fa-sync"></i> Reset</button>
+                </div>
+            </div>`;
 
         footer.style.display = 'block';
         actionBtn.innerText = "Appliquer & Enregistrer";
 
-        actionBtn.onclick = () => {
-            if (typeof confirmEdit === 'function') {
-                confirmEdit();
+        actionBtn.onclick = async () => {
+            actionBtn.disabled = true;
+            actionBtn.innerText = "Traitement en cours...";
+            
+            try {
+                if (typeof confirmEdit === 'function') {
+                    await confirmEdit();
+                }
+                closeUniversalModal();
+            } catch (error) {
+                console.error("Erreur d'édition:", error);
+                alert("Erreur lors de l'enregistrement.");
+            } finally {
+                actionBtn.disabled = false;
+                actionBtn.innerText = "Appliquer & Enregistrer";
             }
-            closeUniversalModal();
         };
 
         setTimeout(() => {
-            if (typeof initCropper === 'function') initCropper(selectedFiles[0]);
-        }, 200);
+            if (typeof initCropper === 'function') {
+                initCropper(selectedFiles[0]);
+            } else {
+                console.error("Fonction initCropper introuvable.");
+            }
+        }, 300);
     }
 
     modal.style.display = 'flex';
 }
+
 function closeUniversalModal() {
     const modal = document.getElementById('universalModal');
     if (modal) {
         modal.style.display = 'none';
-        
-        // Optionnel : Arrêter le tracé de signature si on ferme
-        isDrawing = false; 
-        
-        // Optionnel : Nettoyer le body pour libérer de la mémoire
+        if (typeof isDrawing !== 'undefined') isDrawing = false; 
         document.getElementById('modalBody').innerHTML = '';
     }
 }
