@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 <style>
-        :root {
+             :root {
             --primary: #311038;
             --accent: #F0D13C;
             --bg: #f5f5fa;
@@ -360,6 +360,20 @@
     padding: 15px;
     background: #f8f8fc;
     border-radius: 20px;
+}
+.spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255,255,255,.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 /* --- RESPONSIVE --- */
@@ -720,6 +734,7 @@
     transform: translateX(-50%) translateY(0);
     pointer-events: auto;
 }
+
   </style>
 
 
@@ -796,8 +811,8 @@
                 <button class="action-btn" onclick="setMode('security/protect', this)"><i class="fa fa-lock"></i> Protect PDF</button>
                 <button class="action-btn" onclick="setMode('edit/unlock', this)"><i class="fa fa-unlock"></i> Unlock PDF</button>
                 <button class="action-btn" onclick="setMode('edit/sign', this)"><i class="fa fa-signature"></i> Sign PDF</button>
-                <button class="action-btn" onclick="setMode('edit/translate', this)"><i class="fa fa-language"></i> Translate PDF</button>
-                <button class="action-btn" onclick="setMode('edit/intelligence', this)"><i class="fa fa-brain"></i> PDF Intelligence</button>
+                <button class="action-btn" onclick="openToolModal('translate')"><i class="fa fa-language"></i> Translate PDF</button>
+                <button class="action-btn" onclick="openToolModal('intelligence')"><i class="fa fa-brain"></i> PDF Intelligence</button>
             </div>
         </div>
         <div id="noResults" class="no-results" style="display:none; text-align:center; padding:20px; font-size:0.8rem; color:#999;">Aucun outil trouvé...</div>
@@ -901,7 +916,11 @@ const routeMapping = {
     'security/protect': 'security/protect',
     'edit/unlock': 'edit/unlock', // ✅ Correspond à ton nouveau unlock.py
     'edit/sign': 'edit/sign',     // ✅ Ajouté pour le module Signature
-
+     
+     // --- AI & TRANSLATE (AJOUTE ÇA ICI) ---
+    'edit/translate': 'edit/translate',
+    'edit/intelligence': 'edit/intelligence',
+     
     // --- EDIT & REPAIR ---
     'edit/repair': 'edit/repair',
     'edit/compress': 'edit/compress',
@@ -1647,6 +1666,104 @@ function openToolModal(type) {
         actionBtn.innerText = "Lancer la lecture";
         actionBtn.onclick = () => { closeUniversalModal(); dlBtn.click(); };
 
+    // --- NOUVEAU : TRADUCTION ---
+    } else if (type === 'translate') {
+        title.innerText = "Traduire le document";
+        desc.innerText = "Traduisez votre PDF instantanément grâce à l'IA Umbrella.";
+        icon.innerHTML = `<i class="fa fa-globe" style="font-size:35px; color:var(--primary);"></i>`;
+        
+        body.innerHTML = `
+            <div style="text-align:left; margin-bottom:15px;">
+                <label style="font-size:11px; font-weight:800; color:var(--primary); text-transform:uppercase;">Langue d'origine</label>
+                <select id="langSource" class="style-select" style="width:100%; padding:12px; border-radius:12px; border:1px solid #eee; background:#f8f8fc;">
+                    <option value="auto">Détection automatique</option>
+                    <option value="fr">Français</option>
+                    <option value="en">Anglais</option>
+                    <option value="es">Espagnol</option>
+                </select>
+            </div>
+            <div style="text-align:left; margin-bottom:15px;">
+                <label style="font-size:11px; font-weight:800; color:var(--primary); text-transform:uppercase;">Langue de destination</label>
+                <select id="langTarget" class="style-select" style="width:100%; padding:12px; border-radius:12px; border:1px solid #eee; background:#f8f8fc;">
+                    <option value="en">Anglais</option>
+                    <option value="fr">Français</option>
+                    <option value="es">Espagnol</option>
+                    <option value="de">Allemand</option>
+                </select>
+            </div>
+            <div style="text-align:left; background:#f0f0f7; padding:15px; border-radius:15px;">
+                <label style="font-size:11px; font-weight:800; color:var(--primary); text-transform:uppercase; display:block; margin-bottom:10px;">Disposition PDF de sortie</label>
+                
+                <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:12px;">
+                    <input type="radio" name="layoutOption" value="layout" checked style="margin-top:4px;">
+                    <div style="font-size:12px;">
+                        <span style="font-weight:700; display:block;">Conserver la mise en page</span>
+                        <span style="color:#666;">Conserve les images et graphiques d'origine.</span>
+                    </div>
+                </label>
+                
+                <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                    <input type="radio" name="layoutOption" value="text" style="margin-top:4px;">
+                    <div style="font-size:12px;">
+                        <span style="font-weight:700; display:block;">Texte uniquement</span>
+                        <span style="color:#666;">Idéal pour le copier-coller (plus rapide).</span>
+                    </div>
+                </label>
+            </div>`;
+
+        footer.style.display = 'block';
+        actionBtn.innerText = "Lancer la traduction";
+        actionBtn.onclick = () => {
+            const source = document.getElementById('langSource').value;
+            const target = document.getElementById('langTarget').value;
+            const layout = document.querySelector('input[name="layoutOption"]:checked').value;
+            
+            // Appelle ta fonction de traitement avec les options
+            if (typeof confirmTranslate === 'function') {
+                confirmTranslate(source, target, layout);
+            }
+            closeUniversalModal();
+        };
+
+    // --- NOUVEAU : INTELLIGENCE (IA) ---
+    } else if (type === 'intelligence') {
+        title.innerText = "Umbrella Intelligence";
+        desc.innerText = "Posez une question à votre document ou demandez un résumé.";
+        icon.innerHTML = `<i class="fa fa-robot" style="font-size:35px; color:var(--primary);"></i>`;
+        
+        body.innerHTML = `
+            <div style="text-align:left; margin-bottom:15px;">
+                <label style="font-size:11px; font-weight:800; color:var(--primary); text-transform:uppercase;">Que voulez-vous faire ?</label>
+                <select id="aiTask" class="style-select" style="width:100%; padding:12px; border-radius:12px; border:1px solid #eee; margin-top:5px;" onchange="toggleCustomPrompt(this.value)">
+                    <option value="summary"> Résumer le document</option>
+                    <option value="extract"> Extraire les données clés</option>
+                    <option value="explain"> Expliquer les points complexes</option>
+                    <option value="custom">Question personnalisée...</option>
+                </select>
+            </div>
+            <div id="customPromptArea" style="text-align:left; display:none;">
+                <label style="font-size:11px; font-weight:800; color:var(--primary); text-transform:uppercase;">Votre instruction</label>
+                <textarea id="aiCustomInstruction" placeholder="Ex: Quelles sont les clauses de résiliation ?" style="width:100%; height:80px; padding:12px; border-radius:12px; border:1px solid #eee; background:#f8f8fc; outline:none; font-family:inherit; resize:none; margin-top:5px;"></textarea>
+            </div>`;
+
+        footer.style.display = 'block';
+        actionBtn.innerText = "Analyser avec l'IA";
+        
+        // Petite fonction helper interne pour afficher/masquer le champ texte
+        window.toggleCustomPrompt = (val) => {
+            document.getElementById('customPromptArea').style.display = (val === 'custom') ? 'block' : 'none';
+        };
+
+        actionBtn.onclick = () => {
+            const task = document.getElementById('aiTask').value;
+            const customText = document.getElementById('aiCustomInstruction').value;
+            
+            if (typeof confirmAIAnalysis === 'function') {
+                confirmAIAnalysis(task, customText);
+            }
+            closeUniversalModal();
+        };
+    
     } else if (type === 'unlock') {
         if (header) header.classList.add('header-warning');
         title.innerText = "Déverrouiller le document";
@@ -2160,6 +2277,105 @@ function showToast(message, duration = 2500) {
         toast.style.opacity = '0';
         toast.addEventListener('transitionend', () => toast.remove());
     }, duration);
+}
+async function confirmTranslate(source, target, layout) {
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    
+    showLoading(true, "Traduction en cours...");
+    
+    const formData = new FormData();
+    formData.append("file", selectedFiles[0]);
+    formData.append("target_lang", target);
+    formData.append("layout", layout);
+
+    try {
+        // Utilisation de BASE_URL et de la route mappée
+        const response = await fetch(`${BASE_URL}/${routeMapping['edit/translate']}`, { 
+            method: "POST",
+            body: formData
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const originalName = selectedFiles[0].name.replace(".pdf", "");
+            downloadBlob(blob, `${originalName}_${target.toUpperCase()}.pdf`);
+            showToast("✅ Traduction terminée !");
+            closeUniversalModal();
+        } else {
+            showToast("❌ Erreur serveur lors de la traduction.");
+        }
+    } catch (err) {
+        console.error("Erreur:", err);
+        showToast("❌ Erreur réseau.");
+    } finally {
+        showLoading(false);
+    }
+}
+async function confirmAIAnalysis(task, customText) {
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    
+    showLoading(true, "Analyse IA...");
+    
+    const formData = new FormData();
+    formData.append("file", selectedFiles[0]);
+    formData.append("task", task);
+    if (task === 'custom') formData.append("custom_prompt", customText);
+
+    try {
+        // Utilisation de BASE_URL et de la route mappée
+        const response = await fetch(`${BASE_URL}/${routeMapping['edit/intelligence']}`, {
+            method: "POST",
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showAIResult(data.result); 
+        } else {
+            showToast("❌ L'IA n'a pas pu répondre.");
+        }
+    } catch (err) {
+        showToast("❌ Erreur de connexion à l'IA.");
+    } finally {
+        showLoading(false);
+    }
+}
+function showAIResult(text) {
+    // Tu peux réutiliser ton universalModal pour afficher la réponse de l'IA
+    openToolModal('custom_display'); // Ou crée une petite alerte stylisée
+    document.getElementById('modalTitle').innerText = "Résultat de l'analyse";
+    document.getElementById('modalBody').innerHTML = `
+        <div style="background:#f8f8fc; padding:20px; border-radius:15px; text-align:left; font-size:14px; line-height:1.6; color:#333; max-height:400px; overflow-y:auto;">
+            ${text.replace(/\n/g, '<br>')}
+        </div>
+        <button onclick="navigator.clipboard.writeText(\`${text.replace(/`/g, '\\`')}\`); showToast('Copié !')" style="margin-top:15px; width:100%; padding:10px; border:none; background:var(--primary); color:white; border-radius:10px; cursor:pointer;">
+            Copier le résultat
+        </button>
+    `;
+}
+function showLoading(isLoading, message = "Traitement en cours...") {
+    const actionBtn = document.getElementById('modalActionBtn');
+    if (!actionBtn) return;
+
+    if (isLoading) {
+        actionBtn.disabled = true;
+        // On sauvegarde le texte original s'il n'existe pas déjà
+        if (!actionBtn.getAttribute('data-original-text')) {
+            actionBtn.setAttribute('data-original-text', actionBtn.innerText);
+        }
+        actionBtn.innerHTML = `<span class="spinner"></span> ${message}`;
+    } else {
+        actionBtn.disabled = false;
+        actionBtn.innerText = actionBtn.getAttribute('data-original-text') || "Confirmer";
+    }
+}
+
+// Ajoute aussi showToast si tu ne l'as pas, pour éviter la prochaine erreur
+function showToast(message) {
+    console.log("Toast:", message);
+    // Ici tu peux ajouter ta logique de notification UI (ex: SweetAlert ou un div temporaire)
+    alert(message); 
 }
 </script>
 </body>
