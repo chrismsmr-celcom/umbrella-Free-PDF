@@ -393,18 +393,15 @@ async def repair_endpoint(background_tasks: BackgroundTasks, file: UploadFile = 
 # --- CONVERSION ---
 
 @app.post("/convert/office-to-pdf")
-async def office_to_pdf_endpoint(background_tasks: BackgroundTasks, files: List[UploadFile] = File(...)):
+async def office_to_pdf_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    # Modifié pour accepter UN seul fichier comme envoyé par le frontend
     temp_dir = tempfile.mkdtemp()
-    processed_files = []
     try:
-        for file in files:
-            in_p = os.path.join(temp_dir, file.filename)
-            with open(in_p, "wb") as f:
-                shutil.copyfileobj(file.file, f)
-            result = convert_to_pdf(in_p, temp_dir)
-            if result and os.path.exists(result):
-                processed_files.append(result)
-        return handle_batch_response(processed_files, background_tasks, temp_dir)
+        in_p = os.path.join(temp_dir, file.filename)
+        with open(in_p, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+        result = convert_to_pdf(in_p, temp_dir)
+        return handle_batch_response([result], background_tasks, temp_dir)
     except Exception as e:
         cleanup(temp_dir)
         raise HTTPException(500, detail=str(e))
@@ -637,7 +634,36 @@ def cleanup_expired_scans():
         del scan_sessions[sid]
     if expired_ids:
         print(f"🧹 Nettoyage : {len(expired_ids)} sessions expirées supprimées.")
+
+@app.post("/edit/unlock")
+async def unlock_pdf_endpoint(
+    background_tasks: BackgroundTasks, 
+    file: UploadFile = File(...), 
+    password: str = Form(...) 
+):
+    temp_dir = tempfile.mkdtemp()
+    try:
+        from utils.security import unlock_pdf # Assure-toi d'avoir cette fonction
+        in_p = os.path.join(temp_dir, file.filename)
+        with open(in_p, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+            
+        result = unlock_pdf(in_p, temp_dir, password)
         
+        if result:
+            return handle_batch_response([result], background_tasks, temp_dir)
+        raise HTTPException(400, "Mot de passe incorrect ou erreur de déverrouillage")
+    except Exception as e:
+        cleanup(temp_dir)
+        raise HTTPException(500, detail=str(e))
+
+@app.post("/edit/translate")
+async def translate_stub():
+    raise HTTPException(501, detail="Fonctionnalité Traduction bientôt disponible.")
+
+@app.post("/edit/intelligence")
+async def ai_stub():
+    raise HTTPException(501, detail="Fonctionnalité IA bientôt disponible.")
         # --- FRONTEND ---
 
 if os.path.exists("assets"):
