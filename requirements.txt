@@ -14,6 +14,7 @@ pikepdf==8.13.0
 # --- TRAITEMENT IMAGES & SCAN ---
 Pillow==10.2.0
 pytesseract==0.3.10
+# Headless est parfait pour Docker/Render
 opencv-python-headless==4.9.0.80
 
 # --- OFFICE & DATA ---
@@ -22,8 +23,8 @@ python-pptx==0.6.21
 XlsxWriter==3.1.9
 openpyxl==3.1.2
 pandas==2.2.0
-# Correction pour Camelot (souvent capricieux sur les versions)
-camelot-py[cv]==0.11.0 
+# On reste sur la version de base pour éviter les conflits OpenCV
+camelot-py==0.11.0 
 tabula-py==2.9.0
 
 # --- GÉNÉRATION DE DOCUMENTS & HTML ---
