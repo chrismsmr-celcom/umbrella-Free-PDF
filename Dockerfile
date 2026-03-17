@@ -9,22 +9,25 @@ ENV PYTHONUNBUFFERED=1
 ENV HOME=/home/umbrella_user
 ENV UserInstallation=file:///tmp/libreoffice
 
-# 1. Configurer les dépôts pour inclure 'contrib' et 'non-free' (Polices MS)
-# 2. Accepter la licence Microsoft automatiquement
-# 3. Installer les dépendances système critiques
-RUN sed -i 's/main/main contrib non-free/g' /etc/apt/sources.list.d/debian.sources || \
-    sed -i 's/main/main contrib non-free/g' /etc/apt/sources.list && \
+# 1. Utilisation de composants logiciels pour activer contrib et non-free proprement
+# 2. Acceptation de la licence MS
+# 3. Installation des dépendances
+RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common && \
+    # Ajout des composants contrib et non-free de manière robuste
+    sed -i 's/Components: main/Components: main contrib non-free/g' /etc/apt/sources.list.d/debian.sources || \
+    sed -i 's/main$/main contrib non-free/g' /etc/apt/sources.list && \
+    # Pré-acceptation licence MS
     echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
     apt-get update && apt-get install -y --no-install-recommends \
-    # Office & Java (Nécessaire pour certaines conversions)
+    # Office & Java
     libreoffice-writer libreoffice-calc libreoffice-impress default-jre fonts-liberation \
     # PDF, OCR & Ghostscript
     poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng ghostscript \
-    # Dépendances graphiques (INDISPENSABLE pour OpenCV et Signature)
+    # Dépendances graphiques (OpenCV et Signature)
     libgl1 libglib2.0-0 libgdk-pixbuf2.0-0 \
     # Dépendances pour WEASYPRINT (HTML-to-PDF)
     libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0 libffi-dev libxml2-dev libxslt1-dev \
-    # Polices Windows (Fidélité maximale pour conversion Office)
+    # Polices Windows (Fidélité maximale)
     ttf-mscorefonts-installer \
     # Utilitaires
     python3-tk curl \
