@@ -9,6 +9,7 @@ pypdf==4.0.1
 pdf2docx==0.5.6
 pdf2image==1.17.0
 pdfplumber==0.10.3
+pikepdf==8.13.0
 
 # --- TRAITEMENT IMAGES & SCAN ---
 Pillow==10.2.0
@@ -33,3 +34,4 @@ weasyprint==61.2
 # --- UTILITAIRES ---
 typing-extensions==4.9.0
 fonttools==4.47.2
+cryptography==42.0.2
