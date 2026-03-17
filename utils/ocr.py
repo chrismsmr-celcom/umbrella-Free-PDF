@@ -3,26 +3,28 @@ import subprocess
 
 def handle_ocr(input_path, output_dir, language="fra"):
     try:
-        output_path = os.path.join(output_dir, f"ocr_result.pdf")
+        output_path = os.path.join(output_dir, "ocr_result.pdf")
 
-        # Appel direct du binaire (plus fiable sur Linux/Render)
         cmd = [
             "ocrmypdf",
-            "--skip-text", # Plus rapide si certaines pages ont déjà du texte
+            "--skip-text", 
             "--rotate-pages",
-            "-l", language,
+            "--language", language, # Utilise le nom complet de l'argument
+            "--jobs", "1",         # Important sur Render (évite de saturer le CPU/RAM)
+            "--output-type", "pdf",
             input_path,
             output_path
         ]
 
-        # On utilise env pour s'assurer que le PATH est correct
+        # On capture les erreurs pour le debug
         result = subprocess.run(cmd, capture_output=True, text=True)
 
-        if result.returncode in [0, 6]: # 6 = Déjà du texte, mais ok
+        if result.returncode in [0, 6]: 
             return output_path
         else:
-            print(f"DEBUG OCR ERROR: {result.stderr}")
+            # Si ça échoue, on log le message d'erreur exact du binaire
+            print(f"❌ OCRmyPDF Error: {result.stderr}")
             return None
     except Exception as e:
-        print(f"SYSTEM ERROR OCR: {e}")
+        print(f"❌ SYSTEM ERROR OCR: {e}")
         return None
