@@ -1,5 +1,5 @@
 # Utiliser l'image Python slim comme base
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 # Optimisations Python
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -12,22 +12,22 @@ ENV UserInstallation=file:///tmp/libreoffice
 # 1. Utilisation de composants logiciels pour activer contrib et non-free proprement
 # 2. Acceptation de la licence MS
 # 3. Installation des dépendances
-RUN apt-get update && \
-    # Modification directe des sources sans passer par software-properties-common
-    find /etc/apt/sources.list.d/ -name "*.sources" -exec sed -i 's/Components: main/Components: main contrib non-free/g' {} + && \
-    (test -f /etc/apt/sources.list && sed -i 's/main$/main contrib non-free/g' /etc/apt/sources.list || true) && \
-    # Pré-acceptation licence MS
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg && \
+    # Étape 1 : On force la configuration des dépôts (contrib et non-free)
+    # On crée un nouveau fichier source propre au lieu de modifier l'existant
+    echo "deb http://deb.debian.org/debian bookworm main contrib non-free" > /etc/apt/sources.list.d/umbrella.list && \
+    echo "deb http://deb.debian.org/debian bookworm-updates main contrib non-free" >> /etc/apt/sources.list.d/umbrella.list && \
+    echo "deb http://security.debian.org/debian-security bookworm-security main contrib non-free" >> /etc/apt/sources.list.d/umbrella.list && \
+    # Étape 2 : On supprime les anciens fichiers qui pourraient créer des conflits
+    rm -f /etc/apt/sources.list.d/debian.sources && \
+    # Étape 3 : On accepte la licence MS et on installe tout
     echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
-    apt-get update && apt-get install -y --no-install-recommends \
-    # Office & Java
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
     libreoffice-writer libreoffice-calc libreoffice-impress default-jre fonts-liberation \
-    # PDF, OCR & Ghostscript
     poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng ghostscript \
-    # Dépendances graphiques (OpenCV et Signature)
     libgl1 libglib2.0-0 libgdk-pixbuf2.0-0 \
-    # Dépendances pour WEASYPRINT
     libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0 libffi-dev libxml2-dev libxslt1-dev \
-    # Polices Windows & Utilitaires
     ttf-mscorefonts-installer curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
