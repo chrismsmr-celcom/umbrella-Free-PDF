@@ -1,7 +1,7 @@
 # --- SERVEUR & API ---
 fastapi==0.109.0
 uvicorn==0.27.0
-python-multipart==0.0.6
+python-multipart==0.1.4
 jinja2==3.1.3
 
 # --- TRAITEMENT PDF ---
@@ -14,7 +14,6 @@ pikepdf==8.13.0
 # --- TRAITEMENT IMAGES & SCAN ---
 Pillow==10.2.0
 pytesseract==0.3.10
-# Headless est parfait pour Docker/Render
 opencv-python-headless==4.9.0.80
 
 # --- OFFICE & DATA ---
@@ -23,18 +22,17 @@ python-pptx==0.6.21
 XlsxWriter==3.1.9
 openpyxl==3.1.2
 pandas==2.2.0
-# On reste sur la version de base pour éviter les conflits OpenCV
 camelot-py==0.11.0 
 tabula-py==2.9.0
 
-# --- GÉNÉRATION DE DOCUMENTS & HTML ---
+# --- GÉNÉRATION DE DOCUMENTS & IA ---
 reportlab==4.0.9
 requests==2.31.0
 weasyprint==61.2
+openai==1.12.0
+deep-translator==1.11.4
 
 # --- UTILITAIRES ---
-typing-extensions==4.9.0
+typing-extensions==4.4.0
 fonttools==4.47.2
 cryptography==42.0.2
-openai==1.12.0
-reportlab==4.0.9
