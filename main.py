@@ -445,9 +445,24 @@ async def pdf_to_word_endpoint(background_tasks: BackgroundTasks, file: UploadFi
         in_p = os.path.join(temp_dir, file.filename)
         with open(in_p, "wb") as f:
             shutil.copyfileobj(file.file, f)
+        
+        # Le résultat doit être un chemin vers un fichier .docx
         result = pdf_to_word(in_p, temp_dir)
+        
         if result and os.path.exists(result):
-            return handle_batch_response([result], background_tasks, temp_dir)
+            # Version PRO : On définit explicitement le type MIME pour Word
+            word_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            filename_out = os.path.basename(result)
+            
+            # On ajoute le nettoyage au background
+            background_tasks.add_task(cleanup, temp_dir)
+            
+            return FileResponse(
+                path=result,
+                filename=filename_out,
+                media_type=word_mime
+            )
+            
         raise HTTPException(400, "La conversion Word a échoué.")
     except Exception as e:
         cleanup(temp_dir)
