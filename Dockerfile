@@ -12,10 +12,10 @@ ENV UserInstallation=file:///tmp/libreoffice
 # 1. Utilisation de composants logiciels pour activer contrib et non-free proprement
 # 2. Acceptation de la licence MS
 # 3. Installation des dépendances
-RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common && \
-    # Ajout des composants contrib et non-free de manière robuste
-    sed -i 's/Components: main/Components: main contrib non-free/g' /etc/apt/sources.list.d/debian.sources || \
-    sed -i 's/main$/main contrib non-free/g' /etc/apt/sources.list && \
+RUN apt-get update && \
+    # Modification directe des sources sans passer par software-properties-common
+    find /etc/apt/sources.list.d/ -name "*.sources" -exec sed -i 's/Components: main/Components: main contrib non-free/g' {} + && \
+    (test -f /etc/apt/sources.list && sed -i 's/main$/main contrib non-free/g' /etc/apt/sources.list || true) && \
     # Pré-acceptation licence MS
     echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -25,12 +25,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends software-proper
     poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng ghostscript \
     # Dépendances graphiques (OpenCV et Signature)
     libgl1 libglib2.0-0 libgdk-pixbuf2.0-0 \
-    # Dépendances pour WEASYPRINT (HTML-to-PDF)
+    # Dépendances pour WEASYPRINT
     libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0 libffi-dev libxml2-dev libxslt1-dev \
-    # Polices Windows (Fidélité maximale)
-    ttf-mscorefonts-installer \
-    # Utilitaires
-    python3-tk curl \
+    # Polices Windows & Utilitaires
+    ttf-mscorefonts-installer curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
