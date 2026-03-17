@@ -393,18 +393,50 @@ async def repair_endpoint(background_tasks: BackgroundTasks, file: UploadFile = 
 # --- CONVERSION ---
 
 @app.post("/convert/office-to-pdf")
-async def office_to_pdf_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
-    # Modifié pour accepter UN seul fichier comme envoyé par le frontend
+async def office_to_pdf_endpoint(
+    background_tasks: BackgroundTasks, 
+    file: UploadFile = File(...)
+):
+    # 1. Validation de l'extension pour éviter de lancer LibreOffice pour rien
+    allowed_extensions = {'.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.rtf'}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Extension {ext} non supportée pour la conversion Office."
+        )
+
+    # 2. Création d'un répertoire temporaire unique (Isolation)
     temp_dir = tempfile.mkdtemp()
+    
     try:
-        in_p = os.path.join(temp_dir, file.filename)
+        # Utilisation d'un nom de fichier sécurisé pour éviter les caractères spéciaux
+        safe_filename = f"input{ext}" 
+        in_p = os.path.join(temp_dir, safe_filename)
+        
+        # 3. Écriture par morceaux (Chunking) pour économiser la RAM sur les gros fichiers
         with open(in_p, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+            while chunk := await file.read(1024 * 1024): # 1MB chunks
+                f.write(chunk)
+
+        # 4. Conversion avec timeout et isolation (via ton utilitaire)
+        # Note : Assure-toi que convert_to_pdf utilise l'argument -env:UserInstallation
         result = convert_to_pdf(in_p, temp_dir)
+        
+        if not result or not os.path.exists(result):
+            raise Exception("Le moteur de conversion n'a pas généré de fichier.")
+
+        # 5. Réponse via le handler générique avec nettoyage en arrière-plan
         return handle_batch_response([result], background_tasks, temp_dir)
+
     except Exception as e:
-        cleanup(temp_dir)
-        raise HTTPException(500, detail=str(e))
+        # Nettoyage immédiat en cas d'échec avant la réponse
+        background_tasks.add_task(cleanup, temp_dir)
+        print(f"❌ PRO Error (Office2PDF): {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Erreur lors de la conversion du document Office."
+        )
 
 @app.post("/convert/pdf-to-word")
 async def pdf_to_word_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
@@ -657,13 +689,39 @@ async def unlock_pdf_endpoint(
         cleanup(temp_dir)
         raise HTTPException(500, detail=str(e))
 
-@app.post("/edit/translate")
-async def translate_stub():
-    raise HTTPException(501, detail="Fonctionnalité Traduction bientôt disponible.")
-
 @app.post("/edit/intelligence")
-async def ai_stub():
-    raise HTTPException(501, detail="Fonctionnalité IA bientôt disponible.")
+async def ai_pdf_analysis(
+    file: UploadFile = File(...),
+    task: str = Form("summary") # summary, keywords, or extract_data
+):
+    temp_dir = tempfile.mkdtemp()
+    try:
+        in_p = os.path.join(temp_dir, file.filename)
+        with open(in_p, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        # 1. Extraction du texte brut (nécessaire pour l'IA)
+        from utils.ocr import get_text_content
+        text_content = get_text_content(in_p)
+
+        if not text_content.strip():
+            raise Exception("Le document semble vide ou illisible.")
+
+        # 2. Appel à un LLM (OpenAI GPT-4o ou Claude 3.5)
+        from utils.ai import process_ai_task
+        analysis_result = await process_ai_task(text_content, task)
+
+        # On nettoie tout de suite car on renvoie du texte, pas un fichier
+        cleanup(temp_dir)
+        
+        return {
+            "status": "success",
+            "task": task,
+            "result": analysis_result
+        }
+    except Exception as e:
+        cleanup(temp_dir)
+        raise HTTPException(500, detail=f"Erreur IA : {str(e)}")
         # --- FRONTEND ---
 
 if os.path.exists("assets"):
