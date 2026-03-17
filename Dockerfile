@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     libreoffice-writer libreoffice-calc libreoffice-impress default-jre fonts-liberation \
     poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng ghostscript \
     libgl1 libglib2.0-0 libgdk-pixbuf2.0-0 \
+    libgl1 libglib2.0-0 libgdk-pixbuf2.0-0 \
     libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0 libffi-dev libxml2-dev libxslt1-dev \
     ttf-mscorefonts-installer curl \
     && apt-get clean \
