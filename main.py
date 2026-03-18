@@ -682,26 +682,36 @@ async def sign_document(
 
 def cleanup_expired_scans():
     """
-    Garbage Collector : Supprime les fichiers et les sessions expirés.
-    Empêche la saturation du stockage éphémère de Render.
+    Garbage Collector optimisé pour Makem Group / 360PDF.
+    Nettoie les sessions et fichiers de plus de 15 minutes.
     """
     now = time.time()
     expired_ids = []
 
-    for sid, data in scan_sessions.items():
-        if (now - data["timestamp"]) > SCAN_EXPIRATION_TIME:
-            # Suppression du fichier physique s'il existe
-            if data["path"] and os.path.exists(data["path"]):
+    # 1. Identification des sessions périmées
+    # On travaille sur une copie des clés pour être 100% safe
+    for sid in list(scan_sessions.keys()):
+        data = scan_sessions[sid]
+        if (now - data.get("timestamp", 0)) > SCAN_EXPIRATION_TIME:
+            file_path = data.get("path")
+            
+            # Suppression physique du fichier
+            if file_path and os.path.exists(file_path):
                 try:
-                    os.remove(data["path"])
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        print(f"🗑️ Fichier supprimé : {os.path.basename(file_path)}")
                 except Exception as e:
-                    print(f"⚠️ Erreur nettoyage fichier session {sid}: {e}")
+                    print(f"⚠️ Erreur suppression fichier {sid}: {e}")
+            
             expired_ids.append(sid)
 
+    # 2. Nettoyage de la mémoire vive
     for sid in expired_ids:
-        del scan_sessions[sid]
+        scan_sessions.pop(sid, None)
+
     if expired_ids:
-        print(f"🧹 Nettoyage : {len(expired_ids)} sessions expirées supprimées.")
+        print(f"🧹 Umbrella GC : {len(expired_ids)} sessions nettoyées. Statut : OK.")
 
 @app.post("/edit/unlock")
 async def unlock_pdf_endpoint(
