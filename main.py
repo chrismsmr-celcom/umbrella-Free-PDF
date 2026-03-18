@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import mimetypes
 import time
+import base64
 from typing import List
 from PIL import Image, ImageOps
 from fastapi import APIRouter, Form, HTTPException
@@ -225,12 +226,9 @@ async def edit_document(
     w: float = Form(None),
     h: float = Form(None)
 ):
-    # Récupérer l'extension originale (ex: .pdf ou .jpg)
-    ext = os.path.splitext(file.filename)[1].lower()
-    if not ext:
-        ext = ".pdf" # Par défaut si vide
-
-    temp_in = f"temp_in_{uuid.uuid4().hex}{ext}" # Ajout de l'extension ici
+    # Récupérer l'extension originale
+    ext = os.path.splitext(file.filename)[1].lower() or ".pdf"
+    temp_in = f"temp_in_{uuid.uuid4().hex}{ext}"
     temp_out = f"edit_result_{uuid.uuid4().hex}.pdf"
     
     try:
@@ -247,10 +245,10 @@ async def edit_document(
         print(f"Erreur Edit: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-    if os.path.exists(temp_in): os.remove(temp_in)
-    # temp_out reste sur le disque et n'est jamais supprimé !
-        # Attention: Ne pas supprimer temp_out ici sinon FileResponse échouera 
-        # (Il vaut mieux utiliser BackgroundTasks pour supprimer temp_out après l'envoi)
+        # ICI : Il faut absolument 4 espaces devant le "if"
+        if os.path.exists(temp_in): 
+            os.remove(temp_in)
+            
 @app.post("/edit/save-final")
 async def save_final_edit(
     background_tasks: BackgroundTasks,
