@@ -1,5 +1,6 @@
 import os
 import subprocess
+import pdfplumber
 
 def handle_ocr(input_path, output_dir, language="fra"):
     try:
@@ -28,3 +29,14 @@ def handle_ocr(input_path, output_dir, language="fra"):
     except Exception as e:
         print(f"❌ SYSTEM ERROR OCR: {e}")
         return None
+def needs_ocr(pdf_path):
+    """Renvoie True si le PDF ne contient quasiment aucun texte extractible."""
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text and len(text.strip()) > 50: # Si on trouve + de 50 carcs, c'est du vrai texte
+                    return False
+        return True # Aucune page n'a de texte consistant -> C'est un scan
+    except:
+        return True
