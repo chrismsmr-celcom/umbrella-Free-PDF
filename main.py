@@ -111,7 +111,11 @@ def handle_batch_response(processed_files, background_tasks, temp_dir):
         print(f"❌ Erreur lors de la réponse: {e}")
         raise HTTPException(status_code=500, detail="Erreur interne lors de la génération du téléchargement.")
 # --- ROUTES D'ORGANISATION ---
-
+@app.get("/sw.js")
+async def get_sw():
+    # Assure-toi que le fichier sw.js est bien à la racine de ton projet
+    return FileResponse("sw.js", media_type="application/javascript")
+    
 @app.post("/organize/merge")
 async def merge_endpoint(background_tasks: BackgroundTasks, files: List[UploadFile] = File(...)):
     temp_dir = tempfile.mkdtemp()
@@ -548,14 +552,20 @@ async def ocr_endpoint(background_tasks: BackgroundTasks, file: UploadFile = Fil
         in_p = os.path.join(temp_dir, file.filename)
         with open(in_p, "wb") as f:
             shutil.copyfileobj(file.file, f)
+            
         result = handle_ocr(in_p, temp_dir, language)
+        
         if result and os.path.exists(result):
-            apply_watermark(result)
-            background_tasks.add_task(cleanup, temp_dir)
-            return FileResponse(result, filename=f"searchable_{file.filename}", media_type="application/pdf")
-        raise HTTPException(400, "OCR échoué")
+            # Optionnel: on n'applique le watermark que si le fichier fait > 0 octets
+            if os.path.getsize(result) > 0:
+                # apply_watermark(result) # Désactive-le temporairement pour tester si c'est lui qui crash
+                background_tasks.add_task(cleanup, temp_dir)
+                return FileResponse(result, filename=f"searchable_{file.filename}", media_type="application/pdf")
+        
+        raise Exception("Le moteur OCR n'a pas pu traiter ce document.")
     except Exception as e:
         cleanup(temp_dir)
+        print(f"🔥 Erreur OCR détaillée: {str(e)}")
         raise HTTPException(500, detail=str(e))
 
 @app.post("/convert/images-to-pdf")
