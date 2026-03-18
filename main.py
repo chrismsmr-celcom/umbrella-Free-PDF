@@ -340,21 +340,28 @@ async def check_session(session_id: str):
 
 @app.get("/scan/get-result/{filename}")
 async def get_scan_result(filename: str, background_tasks: BackgroundTasks):
-    """
-    Téléchargement final du PDF et suppression immédiate après envoi.
-    """
-    # Protection anti-injection de chemin
+    # Sécurité : on nettoie le nom de fichier
     safe_filename = os.path.basename(filename)
+    # Assure-toi que STORAGE_DIR pointe bien au même endroit que lors de l'upload
     file_path = os.path.join(STORAGE_DIR, safe_filename)
 
-    if os.path.exists(file_path):
-        # Suppression du fichier dès que le téléchargement est terminé
-        background_tasks.add_task(os.remove, file_path)
-        return FileResponse(
-            file_path, 
-            media_type="application/pdf", 
-            filename="umbrella_scan.pdf"
-        )
+    if not os.path.exists(file_path):
+        print(f"❌ Fichier non trouvé sur le disque : {file_path}")
+        raise HTTPException(status_code=404, detail="Fichier introuvable")
+
+    # On ajoute un petit délai avant la suppression pour laisser le temps au stream de finir
+    def delayed_remove(path):
+        time.sleep(5) # Attendre 5 secondes après l'envoi
+        if os.path.exists(path):
+            os.remove(path)
+
+    background_tasks.add_task(delayed_remove, file_path)
+    
+    return FileResponse(
+        file_path, 
+        media_type="application/pdf", 
+        filename="umbrella_scan.pdf"
+    )
 
     raise HTTPException(status_code=404, detail="Fichier introuvable")
 
