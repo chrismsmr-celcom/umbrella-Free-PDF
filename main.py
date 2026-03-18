@@ -450,15 +450,25 @@ async def pdf_to_word_endpoint(background_tasks: BackgroundTasks, file: UploadFi
         with open(in_p, "wb") as f:
             shutil.copyfileobj(file.file, f)
         
-        # Le résultat doit être un chemin vers un fichier .docx
-        result = pdf_to_word(in_p, temp_dir)
+        # --- ÉTAPE 1 : DETECTION INTELLIGENTE ---
+        # On vérifie si le PDF a besoin d'un OCR (s'il est vide de texte réel)
+        from utils.ocr import needs_ocr, handle_ocr
+        
+        target_path = in_p
+        if needs_ocr(in_p):
+            print(f"🔍 Scan détecté pour {file.filename}, lancement de l'OCR avant conversion...")
+            ocr_result = handle_ocr(in_p, temp_dir, language="fra")
+            if ocr_result:
+                target_path = ocr_result # On convertira le PDF "OCRisé"
+
+        # --- ÉTAPE 2 : CONVERSION WORD ---
+        # On utilise le PDF (original ou OCRisé) pour générer le .docx
+        result = pdf_to_word(target_path, temp_dir)
         
         if result and os.path.exists(result):
-            # Version PRO : On définit explicitement le type MIME pour Word
             word_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             filename_out = os.path.basename(result)
             
-            # On ajoute le nettoyage au background
             background_tasks.add_task(cleanup, temp_dir)
             
             return FileResponse(
@@ -470,8 +480,9 @@ async def pdf_to_word_endpoint(background_tasks: BackgroundTasks, file: UploadFi
         raise HTTPException(400, "La conversion Word a échoué.")
     except Exception as e:
         cleanup(temp_dir)
+        print(f"🔥 Erreur PDF-to-Word: {e}")
         raise HTTPException(500, detail=str(e))
-
+        
 @app.post("/convert/pdf-to-excel")
 async def pdf_to_excel_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     temp_dir = tempfile.mkdtemp()
