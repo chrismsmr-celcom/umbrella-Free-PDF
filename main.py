@@ -6,6 +6,8 @@ import tempfile
 import mimetypes
 import time
 from typing import List
+from PIL import Image, ImageOps
+from fastapi import APIRouter, Form, HTTPException
 
 # FastAPI & Responses
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Request
@@ -245,9 +247,51 @@ async def edit_document(
         print(f"Erreur Edit: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        if os.path.exists(temp_in): os.remove(temp_in)
+    if os.path.exists(temp_in): os.remove(temp_in)
+    # temp_out reste sur le disque et n'est jamais supprimé !
         # Attention: Ne pas supprimer temp_out ici sinon FileResponse échouera 
         # (Il vaut mieux utiliser BackgroundTasks pour supprimer temp_out après l'envoi)
+@app.post("/edit/save-final")
+async def save_final_edit(
+    background_tasks: BackgroundTasks,
+    image_data: str = Form(...), 
+    filename: str = Form(...)
+):
+    """
+    Route Premium : Reçoit l'image fusionnée du canvas Fabric.js 
+    et la convertit en un PDF 'Flatten' (sécurisé).
+    """
+    temp_dir = tempfile.mkdtemp()
+    final_pdf_path = os.path.join(temp_dir, f"fixed_{filename}")
+    
+    try:
+        # 1. Décodage de l'image Base64 envoyée par le JS
+        format, imgstr = image_data.split(';base64,')
+        img_bytes = base64.b64decode(imgstr)
+
+        temp_png_path = os.path.join(temp_dir, "canvas_overlay.png")
+        with open(temp_png_path, "wb") as f:
+            f.write(img_bytes)
+
+        # 2. Traitement avec Pillow pour le 'Flattening'
+        # On convertit en RGB pour aplatir les calques et détruire ce qui est sous le noir (redact)
+        with Image.open(temp_png_path) as img:
+            rgb_img = img.convert("RGB")
+            # Sauvegarde en PDF haute définition (300 DPI)
+            rgb_img.save(final_pdf_path, "PDF", resolution=300.0)
+
+        # 3. Réponse avec nettoyage auto du dossier temp
+        return FileResponse(
+            path=final_pdf_path,
+            filename=f"umbrella_pro_{filename}",
+            media_type="application/pdf",
+            background=background_tasks.add_task(cleanup, temp_dir)
+        )
+
+    except Exception as e:
+        cleanup(temp_dir)
+        print(f"❌ Erreur Export Pro: {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la génération du PDF final.")
 # --- SCAN MOBILE ---
 
 @app.get("/scan/generate-session")
