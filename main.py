@@ -854,6 +854,14 @@ async def ai_pdf_analysis(
     except Exception as e:
         cleanup(temp_dir)
         raise HTTPException(500, detail=f"Erreur IA : {str(e)}")
+
+def cleanup(temp_path: str):
+    if os.path.exists(temp_path):
+        if os.path.isdir(temp_path):
+            shutil.rmtree(temp_path)
+        else:
+            os.remove(temp_path)
+            
         # --- FRONTEND ---
 
 if os.path.exists("assets"):
