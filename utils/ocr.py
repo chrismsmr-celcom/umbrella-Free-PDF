@@ -5,26 +5,26 @@ import pdfplumber
 def handle_ocr(input_path, output_dir, language="fra"):
     try:
         output_path = os.path.join(output_dir, "ocr_result.pdf")
-
+        
         cmd = [
             "ocrmypdf",
-            "--skip-text", 
-            "--rotate-pages",
-            "--language", language, # Utilise le nom complet de l'argument
-            "--jobs", "1",         # Important sur Render (évite de saturer le CPU/RAM)
+            "--skip-text",        # Ne pas refaire l'OCR si du texte existe déjà
+            "--optimize", "1",    # Optimisation légère pour sauver de la RAM
+            "--language", language,
+            "--jobs", "1",         # FORCE 1 SEUL COEUR (Crucial sur Render)
             "--output-type", "pdf",
+            "--tesseract-timeout", "300", # Laisse du temps au moteur
             input_path,
             output_path
         ]
 
-        # On capture les erreurs pour le debug
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        # Utilise env={"OMP_THREAD_LIMIT": "1"} pour limiter la librairie tesseract
+        result = subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, "OMP_THREAD_LIMIT": "1"})
 
         if result.returncode in [0, 6]: 
             return output_path
         else:
-            # Si ça échoue, on log le message d'erreur exact du binaire
-            print(f"❌ OCRmyPDF Error: {result.stderr}")
+            print(f"❌ OCRmyPDF Error Log: {result.stderr}") # Regarde tes logs Render !
             return None
     except Exception as e:
         print(f"❌ SYSTEM ERROR OCR: {e}")
