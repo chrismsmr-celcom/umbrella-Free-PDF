@@ -6,17 +6,18 @@ def handle_ocr(input_path, output_dir, language="fra"):
     try:
         output_path = os.path.join(output_dir, "ocr_result.pdf")
         
-        cmd = [
-            "ocrmypdf",
-            "--skip-text",        # Ne pas refaire l'OCR si du texte existe déjà
-            "--optimize", "1",    # Optimisation légère pour sauver de la RAM
-            "--language", language,
-            "--jobs", "1",         # FORCE 1 SEUL COEUR (Crucial sur Render)
-            "--output-type", "pdf",
-            "--tesseract-timeout", "300", # Laisse du temps au moteur
-            input_path,
-            output_path
-        ]
+       cmd = [
+    "ocrmypdf",
+    "--skip-text",
+    "--language", language,
+    "--jobs", "1",
+    # CHANGE CETTE LIGNE :
+    "--output-type", "pdf", # On force le type PDF simple (évite souvent GS pour le rendu final)
+    # AJOUTE CETTE LIGNE POUR IGNORER L'AVERTISSEMENT GS :
+    "--continue-on-soft-render-error", 
+    input_path,
+    output_path
+]
 
         # Utilise env={"OMP_THREAD_LIMIT": "1"} pour limiter la librairie tesseract
         result = subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, "OMP_THREAD_LIMIT": "1"})
