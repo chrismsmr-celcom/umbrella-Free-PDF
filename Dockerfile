@@ -24,6 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
+    ocrmypdf tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng \
+    ghostscript unpaper pngquant libjbig2dec0 \
     libreoffice-writer libreoffice-calc libreoffice-impress default-jre fonts-liberation \
     poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng ghostscript \
     libgl1 libglib2.0-0 libgdk-pixbuf2.0-0 \
