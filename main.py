@@ -255,41 +255,52 @@ async def save_final_edit(
     image_data: str = Form(...), 
     filename: str = Form(...)
 ):
-    """
-    Route Premium : Reçoit l'image fusionnée du canvas Fabric.js 
-    et la convertit en un PDF 'Flatten' (sécurisé).
-    """
+    # 1. Création sécurisée du dossier temporaire
     temp_dir = tempfile.mkdtemp()
-    final_pdf_path = os.path.join(temp_dir, f"fixed_{filename}")
+    # Nettoyage du nom de fichier pour éviter les problèmes d'extension double
+    base_name = os.path.basename(filename).replace(".pdf", "")
+    final_pdf_path = os.path.join(temp_dir, f"fixed_{base_name}.pdf")
     
     try:
-        # 1. Décodage de l'image Base64 envoyée par le JS
-        format, imgstr = image_data.split(';base64,')
-        img_bytes = base64.b64decode(imgstr)
+        # 2. Décodage robuste du Base64
+        # Le JS envoie souvent "data:image/png;base64,iVBOR..."
+        try:
+            if "," in image_data:
+                header, imgstr = image_data.split(',')
+            else:
+                imgstr = image_data
+            
+            img_bytes = base64.b64decode(imgstr)
+        except Exception as decode_err:
+            print(f"Erreur décodage Base64: {decode_err}")
+            raise HTTPException(status_code=400, detail="Données d'image corrompues.")
 
         temp_png_path = os.path.join(temp_dir, "canvas_overlay.png")
         with open(temp_png_path, "wb") as f:
             f.write(img_bytes)
 
-        # 2. Traitement avec Pillow pour le 'Flattening'
-        # On convertit en RGB pour aplatir les calques et détruire ce qui est sous le noir (redact)
+        # 3. Traitement Pillow (Flattening)
         with Image.open(temp_png_path) as img:
+            # Conversion en RGB indispensable pour le format PDF (qui ne gère pas la transparence PNG)
+            # Cela "écrase" les calques et valide les biffures (redactions)
             rgb_img = img.convert("RGB")
-            # Sauvegarde en PDF haute définition (300 DPI)
+            # 300 DPI pour une qualité professionnelle
             rgb_img.save(final_pdf_path, "PDF", resolution=300.0)
 
-        # 3. Réponse avec nettoyage auto du dossier temp
+        # 4. Réponse avec tâche de fond pour supprimer le dossier complet
         return FileResponse(
             path=final_pdf_path,
-            filename=f"umbrella_pro_{filename}",
+            filename=f"umbrella_pro_{base_name}.pdf",
             media_type="application/pdf",
             background=background_tasks.add_task(cleanup, temp_dir)
         )
 
     except Exception as e:
+        # Nettoyage immédiat en cas d'erreur
         cleanup(temp_dir)
         print(f"❌ Erreur Export Pro: {e}")
-        raise HTTPException(status_code=500, detail="Erreur lors de la génération du PDF final.")
+        # On renvoie l'erreur réelle pour le débuggage (à masquer en prod si besoin)
+        raise HTTPException(status_code=500, detail=str(e))
 # --- SCAN MOBILE ---
 
 @app.get("/scan/generate-session")
