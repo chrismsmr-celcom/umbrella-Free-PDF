@@ -1,19 +1,16 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Umbrella PDF Engine v3.0 | Pro Ecosystem</title>
-    
+   <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Umbrella PDF Engine v3.0 | Pro Ecosystem</title>
+
 <link rel="manifest" href="assets/manifest.json">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
-
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Umbrella">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#311038">
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
@@ -21,18 +18,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
 <script>
     // Configuration PDF.js
     const pdfjsLib = window['pdfjs-dist/build/pdf'];
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     
-    // Ajout crucial pour éviter l'erreur "standardFontDataUrl" de ta console
-    pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/';
+    // Correction des erreurs de polices (Foxit/ZapfDingbats) vues dans ta console
+    pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = 'https://unpkg.com/pdfjs-dist@3.11.174/standard_fonts/';
 </script>
-
 <style>
         :root {
             --primary: #311038;
@@ -777,6 +772,7 @@
     pointer-events: auto;
 }
   </style>
+
 </head>
 <body>
 
@@ -931,6 +927,7 @@ let editRotation = 0;
 let cropper = null;
 let fabricCanvas = null;
 let currentEditorMode = "move";
+let ctx = null;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -1299,9 +1296,11 @@ if (dlBtn) {
 
       // 4. Paramètres d'options (OCR, Compression)
       if (currentRoute.includes("ocr")) {
-        const langEl = document.getElementById("ocrLanguage");
-        formData.append("language", langEl ? langEl.value : "fra");
-      }
+    const langEl = document.getElementById("ocrLanguage");
+    // On vérifie le DOM ou la variable globale window
+    const selectedLang = langEl ? langEl.value : (window.currentOCRLang || "fra");
+    formData.append("language", selectedLang);
+}
 
       if (currentRoute.includes("compress")) {
         const qualEl = document.getElementById("compressQuality");
@@ -1756,9 +1755,15 @@ function openToolModal(type) {
     footer.style.display = "block";
     actionBtn.innerText = "Lancer la lecture";
     actionBtn.onclick = () => {
-      closeUniversalModal();
-      dlBtn.click();
-    };
+    // 1. On récupère la valeur AVANT de fermer/cliquer
+    const lang = document.getElementById("ocrLanguage").value;
+    // On peut la stocker temporairement ou s'assurer que dlBtn y a accès
+    window.currentOCRLang = lang; 
+    
+    // 2. On lance le processus
+    dlBtn.click();
+    closeUniversalModal();
+};
 
     // --- NOUVEAU : TRADUCTION ---
   } else if (type === "translate") {
@@ -1944,23 +1949,25 @@ function openToolModal(type) {
     body.innerHTML = `
         <div id="editor-layout" style="display: flex; gap: 20px;">
             <div id="editor-toolbar" style="width: 200px; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #eee; padding-right: 15px;">
-                <span style="font-size: 10px; font-weight: 800; color: #888; text-transform: uppercase;">Navigation</span>
-                <button class="btn-tool-sm" onclick="setEditorMode('hand')"><i class="fa fa-hand-paper"></i> Main</button>
+    <span style="font-size: 10px; font-weight: 800; color: #888; text-transform: uppercase;">Navigation</span>
+    <button class="btn-tool-sm" onclick="setEditorMode('hand')"><i class="fa fa-hand-paper"></i> Main</button>
     <button class="btn-tool-sm" onclick="setEditorMode('select')"><i class="fa fa-crop"></i> Sélection</button>
     
-    <span style="font-size: 10px; font-weight: 800; color: #888;">Annotations</span>
+    <span style="font-size: 10px; font-weight: 800; color: #888; text-transform: uppercase; margin-top: 10px;">Annotations</span>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
         <button class="btn-tool-icon" onclick="setBrush('highlight')" title="Surligner"><i class="fa fa-highlighter"></i></button>
         <button class="btn-tool-icon" onclick="setBrush('pen')" title="Crayon"><i class="fa fa-pen"></i></button>
+        <button class="btn-tool-icon" onclick="setBrush('eraser')" title="Gomme"><i class="fa fa-eraser"></i></button>
+        <button class="btn-tool-icon" onclick="clearAllAnnotations()" title="Tout effacer"><i class="fa fa-trash"></i></button>
         <button class="btn-tool-icon" onclick="addTextToEditor()" title="Note"><i class="fa fa-sticky-note"></i></button>
         <button class="btn-tool-icon" onclick="addShape('rect')" title="Carré"><i class="fa fa-square"></i></button>
     </div>
 
-                <span style="font-size: 10px; font-weight: 800; color: #888; text-transform: uppercase; margin-top: 10px;">Transformation</span>
-                <button class="btn-tool-sm" onclick="if(cropper) cropper.rotate(-90)"><i class="fa fa-undo"></i> Pivoter -90°</button>
-                <button class="btn-tool-sm" onclick="if(cropper) cropper.rotate(90)"><i class="fa fa-redo"></i> Pivoter +90°</button>
-                <button class="btn-tool-sm" onclick="if(cropper) cropper.reset()"><i class="fa fa-sync"></i> Réinitialiser</button>
-            </div>
+    <span style="font-size: 10px; font-weight: 800; color: #888; text-transform: uppercase; margin-top: 10px;">Transformation</span>
+    <button class="btn-tool-sm" onclick="if(window.cropper) window.cropper.rotate(-90)"><i class="fa fa-undo"></i> Pivoter -90°</button>
+    <button class="btn-tool-sm" onclick="if(window.cropper) window.cropper.rotate(90)"><i class="fa fa-redo"></i> Pivoter +90°</button>
+    <button class="btn-tool-sm" onclick="fullReset()"><i class="fa fa-sync"></i> Réinitialiser tout</button>
+</div>
 
             <div id="editor-main" style="flex: 1; display: flex; flex-direction: column; align-items: center; background: #f0f0f5; border-radius: 15px; padding: 20px;">
                 <div class="cropper-wrapper" style="width: 100%; max-height: 65vh; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
@@ -2318,63 +2325,85 @@ function rotatePreview(deg) {
 }
 
 async function confirmEdit() {
-  if (!cropper) return;
-
-  // Sécurité supplémentaire : vérifier si un fichier est sélectionné
-  if (!selectedFiles || selectedFiles.length === 0) {
-    alert("Aucun fichier sélectionné.");
-    return;
-  }
-
-  setBtnLoading(true, "Génération du document...");
-
-  // 1. Récupérer les données de l'image source (dimensions réelles)
-  // getImageData est plus fiable que getCanvasData pour naturalWidth/Height
-  const imageData = cropper.getImageData();
-  const data = cropper.getData(true); // Données de recadrage (x, y, width, height)
-
-  // 2. Calcul des ratios en POURCENTAGE
-  // On utilise imageData.naturalWidth/Height pour être certain de pointer sur l'original
-  const x = (data.x / imageData.naturalWidth) * 100;
-  const y = (data.y / imageData.naturalHeight) * 100;
-  const w = (data.width / imageData.naturalWidth) * 100;
-  const h = (data.height / imageData.naturalHeight) * 100;
-  const rotation = data.rotate;
-
-  const formData = new FormData();
-  formData.append("file", selectedFiles[0]);
-  formData.append("rotation", rotation);
-  formData.append("x", x.toFixed(4)); // On limite les décimales pour la propreté
-  formData.append("y", y.toFixed(4));
-  formData.append("w", w.toFixed(4));
-  formData.append("h", h.toFixed(4));
-
-  try {
-    const response = await fetch(`${BASE_URL}/edit/process`, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (response.ok) {
-      // handleFetchResponse gère le téléchargement du blob
-      await handleFetchResponse(response, "edit/process");
-      closeUniversalModal();
-    } else {
-      const errorData = await response.json().catch(() => ({}));
-      alert(
-        `Erreur lors du traitement : ${errorData.detail || "Erreur serveur"}`,
-      );
+    // 1. Vérification de l'instance Cropper
+    if (!window.cropper) {
+        showToast("⚠️ L'éditeur n'est pas prêt.");
+        return;
     }
-  } catch (e) {
-    console.error("Erreur Fetch Edit:", e);
-    alert("Impossible de contacter le serveur.");
-  } finally {
-    setBtnLoading(false);
-    if (cropper) {
-      cropper.destroy();
-      cropper = null;
+
+    showLoading(true, "Fusion des calques et génération...");
+
+    try {
+        // 2. Récupérer le canvas principal (Image recadrée/pivotée)
+        const croppedCanvas = window.cropper.getCroppedCanvas({
+            fillColor: '#fff', // Fond blanc pour éviter la transparence dans le PDF
+            imageSmoothingQuality: 'high'
+        });
+
+        if (!croppedCanvas) throw new Error("Échec de génération du canvas Cropper");
+
+        // 3. Fusion avec le calque de dessin Natif (Remplacement de Fabric)
+        const drawingLayer = document.getElementById("drawingLayer");
+        
+        if (drawingLayer) {
+            console.log("🎨 Fusion des annotations manuelles...");
+            const ctx = croppedCanvas.getContext('2d');
+            
+            // On dessine le calque de dessin par-dessus le crop.
+            // Comme drawingLayer a les mêmes dimensions que le conteneur du cropper, 
+            // l'alignement est conservé.
+            ctx.drawImage(drawingLayer, 0, 0, croppedCanvas.width, croppedCanvas.height);
+        }
+
+        // 4. Préparation de l'envoi vers FastAPI
+        const formData = new FormData();
+        
+        // Conversion du résultat final en Base64
+        const finalDataURL = croppedCanvas.toDataURL("image/png");
+        
+        // On aligne les clés avec ton Python : image_data et filename
+        formData.append("image_data", finalDataURL);
+        
+        // Sécurité pour le nom de fichier
+        const originalName = (selectedFiles && selectedFiles[0]) ? selectedFiles[0].name : "document.png";
+        formData.append("filename", originalName);
+
+        console.log("🚀 Envoi du document fusionné vers le serveur...");
+
+        // 5. Requête POST au serveur
+        const response = await fetch(`${BASE_URL}/edit/save-final`, {
+            method: "POST",
+            body: formData
+            // Rappel : Ne pas définir de Content-Type manuel pour FormData
+        });
+
+        if (response.ok) {
+            // Le serveur renvoie un PDF
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            
+            // Téléchargement automatique
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `umbrella_fixed_${Date.now()}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            
+            showToast("✨ Document enregistré avec succès !");
+            closeUniversalModal(); // On ferme la modale seulement si ça marche
+        } else {
+            const errorMsg = await response.text();
+            console.error("Erreur serveur détaillée:", errorMsg);
+            showToast("❌ Erreur serveur lors de la création du PDF.");
+        }
+
+    } catch (e) {
+        console.error("Erreur critique confirmEdit:", e);
+        showToast("📡 Erreur de traitement ou de connexion.");
+    } finally {
+        showLoading(false);
     }
-  }
 }
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -2569,91 +2598,132 @@ function showToast(message) {
   alert(message);
 }
 function setEditorMode(mode) {
-  currentEditorMode = mode;
-  if (!cropper) return;
+    const layer = document.getElementById("drawingLayer");
+    if (!layer) initCanvasLayer();
+    const targetLayer = document.getElementById("drawingLayer");
 
-  // 1. Désactiver les modes par défaut
-  cropper.setDragMode("none");
-  if (fabricCanvas) fabricCanvas.isDrawingMode = false;
+    // Reset
+    window.cropper.setDragMode("none");
+    targetLayer.style.pointerEvents = "none";
+    targetLayer.onmousedown = null;
 
-  // 2. Activer le mode spécifique
-  switch (mode) {
-    case "hand":
-      cropper.setDragMode("move");
-      break;
-    case "select":
-      cropper.setDragMode("crop");
-      break;
-    case "draw":
-      initFabricIfNecessary();
-      fabricCanvas.isDrawingMode = true;
-      fabricCanvas.freeDrawingBrush.color = "rgba(255, 255, 0, 0.5)"; // Surligneur par défaut
-      fabricCanvas.freeDrawingBrush.width = 20;
-      break;
-    case "text":
-      initFabricIfNecessary();
-      addTextToEditor();
-      break;
-  }
-  console.log("Mode éditeur changé vers :", mode);
+    if (mode === "draw") {
+        targetLayer.style.pointerEvents = "auto";
+        targetLayer.style.cursor = "crosshair";
+        setupDrawingEvents(targetLayer);
+    } else if (mode === "hand") {
+        window.cropper.setDragMode("move");
+    } else if (mode === "select") {
+        window.cropper.setDragMode("crop");
+    }
 }
-function initFabricIfNecessary() {
-  if (fabricCanvas) return;
+function initCanvasLayer() {
+    if (document.getElementById("drawingLayer")) return;
+    
+    const container = document.querySelector(".cropper-container");
+    if (!container || !window.cropper) return;
 
-  // On récupère le conteneur du Cropper pour poser le Canvas dessus
-  const container = document.querySelector(".cropper-container");
-  const canvasElement = document.createElement("canvas");
-  canvasElement.id = "fabricLayer";
-  canvasElement.style.position = "absolute";
-  canvasElement.style.top = "0";
-  canvasElement.style.left = "0";
-  canvasElement.style.zIndex = "10"; // Par dessus Cropper
-  container.appendChild(canvasElement);
+    const canvas = document.createElement("canvas");
+    canvas.id = "drawingLayer";
+    const data = window.cropper.getCanvasData();
 
-  const canvasData = cropper.getCanvasData();
-  fabricCanvas = new fabric.Canvas("fabricLayer", {
-    width: canvasData.width,
-    height: canvasData.height,
-    selection: true,
-  });
+    canvas.width = data.width;
+    canvas.height = data.height;
+    canvas.style.position = "absolute";
+    canvas.style.top = "0";
+    canvas.style.left = "0";
+    canvas.style.zIndex = "10";
+    canvas.style.pointerEvents = "none"; // On l'active seulement en mode dessin
+    
+    container.appendChild(canvas);
+    ctx = canvas.getContext("2d");
 }
 function setBrush(type) {
-  setEditorMode("draw");
-  if (type === "highlight") {
-    fabricCanvas.freeDrawingBrush.color = "rgba(255, 255, 0, 0.3)"; // Jaune transparent
-    fabricCanvas.freeDrawingBrush.width = 25;
-  } else {
-    fabricCanvas.freeDrawingBrush.color = "#000000"; // Noir opaque
-    fabricCanvas.freeDrawingBrush.width = 3;
-  }
+    setEditorMode("draw");
+    if (!ctx) return;
+
+    if (type === "highlight") {
+        ctx.globalCompositeOperation = "source-over"; // Dessin normal
+        ctx.strokeStyle = "rgba(255, 255, 0, 0.4)";
+        ctx.lineWidth = 25;
+    } else if (type === "eraser") {
+        // Le secret de la gomme sur Canvas : destination-out
+        ctx.globalCompositeOperation = "destination-out"; 
+        ctx.lineWidth = 30;
+    } else {
+        ctx.globalCompositeOperation = "source-over";
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 3;
+    }
 }
 function addTextToEditor() {
-  const text = new fabric.IText("Tapez ici...", {
-    left: 50,
-    top: 50,
-    fontFamily: "Arial",
-    fontSize: 20,
-    fill: "#333",
-  });
-  fabricCanvas.add(text);
-  fabricCanvas.setActiveObject(text);
+    const txt = prompt("Texte à ajouter :");
+    if (!txt) return;
+    setEditorMode("draw"); // Pour s'assurer que le ctx est prêt
+    ctx.font = "20px Arial";
+    ctx.fillStyle = "black";
+    ctx.fillText(txt, 50, 50);
 }
 function addShape(type) {
-  setEditorMode("annotate");
-  initFabricIfNecessary();
-  let shape;
-  if (type === "rect") {
-    shape = new fabric.Rect({
-      left: 100,
-      top: 100,
-      fill: "transparent",
-      stroke: "red",
-      strokeWidth: 2,
-      width: 60,
-      height: 60,
-    });
-  }
-  fabricCanvas.add(shape);
+    // 1. On s'assure que le mode dessin est prêt
+    setEditorMode("draw"); 
+    if (!ctx) return;
+
+    // 2. Configuration du style de la forme
+    ctx.globalCompositeOperation = "source-over"; // Mode dessin normal
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 3;
+    ctx.fillStyle = "transparent";
+
+    // 3. Dessin de la forme
+    if (type === "rect") {
+        // x, y, largeur, hauteur
+        // On dessine un rectangle de 100x100 à la position 50,50
+        ctx.strokeRect(50, 50, 100, 100); 
+    } 
+    
+    // Si tu veux ajouter un cercle plus tard :
+    else if (type === "circle") {
+        ctx.beginPath();
+        ctx.arc(100, 100, 50, 0, 2 * Math.PI);
+        ctx.stroke();
+    }
+
+    showToast(`✅ ${type === 'rect' ? 'Rectangle' : 'Forme'} ajouté.`);
+}
+function setupDrawingEvents(canvas) {
+    canvas.onmousedown = (e) => {
+        isDrawing = true;
+        ctx.beginPath();
+        ctx.moveTo(e.offsetX, e.offsetY);
+    };
+    canvas.onmousemove = (e) => {
+        if (!isDrawing) return;
+        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.stroke();
+    };
+    canvas.onmouseup = () => isDrawing = false;
+    
+    // Config par défaut (Crayon noir)
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 3;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+}
+function clearAllAnnotations() {
+    if (!ctx || !document.getElementById("drawingLayer")) return;
+    const canvas = document.getElementById("drawingLayer");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    showToast("🧹 Annotations effacées.");
+}
+
+// 3. Réinitialisation complète (Crop + Annotations)
+function fullReset() {
+    if (window.cropper) {
+        window.cropper.reset();
+    }
+    clearAllAnnotations();
+    showToast("🔄 Éditeur réinitialisé.");
 }
 window.addEventListener("resize", () => {
   if (cropper) {
