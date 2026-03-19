@@ -59,4 +59,5 @@ USER umbrella_user
 EXPOSE 10000
 
 # Lancement avec un timeout élevé (important pour l'OCR et LibreOffice)
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1 --timeout-keep-alive 600"]
+# Augmente le timeout à 120 secondes minimum
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1 --timeout-keep-alive 120 --graceful-timeout 120"]
