@@ -6,26 +6,29 @@ def handle_ocr(input_path, output_dir, language="fra"):
     try:
         output_path = os.path.join(output_dir, "ocr_result.pdf")
         
-       cmd = [
-    "ocrmypdf",
-    "--skip-text",
-    "--language", language,
-    "--jobs", "1",
-    # CHANGE CETTE LIGNE :
-    "--output-type", "pdf", # On force le type PDF simple (évite souvent GS pour le rendu final)
-    # AJOUTE CETTE LIGNE POUR IGNORER L'AVERTISSEMENT GS :
-    "--continue-on-soft-render-error", 
-    input_path,
-    output_path
-]
+        cmd = [
+            "ocrmypdf",
+            "--skip-text",
+            "--language", language,
+            "--jobs", "1",
+            "--output-type", "pdf", # Utilise un moteur PDF plus simple
+            "--continue-on-soft-render-error", # Ignore les erreurs mineures de Ghostscript
+            input_path,
+            output_path
+        ]
 
-        # Utilise env={"OMP_THREAD_LIMIT": "1"} pour limiter la librairie tesseract
-        result = subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, "OMP_THREAD_LIMIT": "1"})
+        # On limite aussi Tesseract pour ne pas dépasser la RAM de Render
+        result = subprocess.run(
+            cmd, 
+            capture_output=True, 
+            text=True, 
+            env={**os.environ, "OMP_THREAD_LIMIT": "1"}
+        )
 
         if result.returncode in [0, 6]: 
             return output_path
         else:
-            print(f"❌ OCRmyPDF Error Log: {result.stderr}") # Regarde tes logs Render !
+            print(f"❌ OCRmyPDF Error: {result.stderr}")
             return None
     except Exception as e:
         print(f"❌ SYSTEM ERROR OCR: {e}")
