@@ -1,0 +1,44 @@
+# --- PYTHON ---
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.python-version
+
+# --- ENVIRONNEMENTS ---
+.env
+.venv
+env/
+venv/
+ENV/
+
+# --- DÉPENDANCES ET BUILD ---
+dist/
+build/
+*.egg-info/
+lib/
+lib64/
+
+# --- UMBRELLA TEMP FILES ---
+# On ignore les fichiers de sortie des outils
+temp_dir/
+profile/
+*.pdf
+*.docx
+*.xlsx
+*.zip
+*.jpg
+*.png
+# Si tu as un dossier spécifique pour les uploads temporaires :
+uploads/
+results/
+
+# --- IDE & SYSTÈME ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- LOGS ---
+*.log
+logs/

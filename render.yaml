@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: umbrella-engine
+    runtime: image
+    repo: https://github.com/votre-username/umbrella-pdf-engine
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: NUMBA_CACHE_DIR
+        value: /tmp/numba_cache
+      - key: TMPDIR
+        value: /tmp/umbrella
+    healthCheckPath: /
+    autoDeploy: true
