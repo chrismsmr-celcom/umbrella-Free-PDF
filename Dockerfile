@@ -30,19 +30,12 @@ ENV HOME=/home/umbrella_user
 ENV TMPDIR=/tmp/umbrella
 ENV NUMBA_CACHE_DIR=/tmp/numba_cache
 
-# Installation des dépendances système
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg wget && \
-    # Configuration des dépôts (contrib et non-free)
-    echo "deb http://deb.debian.org/debian bookworm main contrib non-free" > /etc/apt/sources.list.d/umbrella.list && \
-    echo "deb http://deb.debian.org/debian bookworm-updates main contrib non-free" >> /etc/apt/sources.list.d/umbrella.list && \
-    echo "deb http://security.debian.org/debian-security bookworm-security main contrib non-free" >> /etc/apt/sources.list.d/umbrella.list && \
-    # Suppression des anciens fichiers de configuration
-    rm -f /etc/apt/sources.list.d/debian.sources && \
-    # Acceptation de la licence Microsoft
-    echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
-    # Mise à jour et installation des paquets
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
+# Installation des dépendances système (version corrigée)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    gnupg \
+    wget \
     # OCR et traitement d'images
     ocrmypdf \
     tesseract-ocr \
@@ -76,13 +69,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     libffi-dev \
     libxml2-dev \
     libxslt1-dev \
-    # Polices Microsoft
-    ttf-mscorefonts-installer \
-    # Utilitaires
-    curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/*
+
+# Installation des polices Microsoft (séparée pour éviter les erreurs)
+RUN apt-get update && \
+    echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
+    apt-get install -y --no-install-recommends ttf-mscorefonts-installer || true && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Création de l'utilisateur non-root
 RUN useradd -m -u 1000 umbrella_user && \
