@@ -15,7 +15,7 @@ from .ocr import handle_ocr, needs_ocr, get_text_content
 from .compress import handle_compress
 from .edit import process_edit
 from .translate import handle_translation
-from .ai import process_ai_task
+# from .ai import process_ai_task  # COMMENTÉ - Désactive l'IA si openai non installé
 
 # NOUVEAUX MODULES
 from .forms import FormExtractor, handle_form_extraction
@@ -41,7 +41,7 @@ __all__ = [
     'handle_compress',
     'process_edit',
     'handle_translation',
-    'process_ai_task',
+    # 'process_ai_task',  # COMMENTÉ
     'FormExtractor', 'handle_form_extraction',
     'PDFRedactor', 'handle_redact',
     'PDFMetadata', 'handle_get_metadata', 'handle_update_metadata',

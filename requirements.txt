@@ -56,6 +56,10 @@ dropbox==11.36.2
 
 # Paiements
 stripe==7.5.0
+
+# Intellignece artificiel 
+openai==1.12.0
+
 # --- SUPPRIMÉS (Économie de mémoire) ---
 # - camelot-py (trop lourd, 300MB)
 # - pdfminer.six (déjà dans pdfplumber)
