@@ -53,6 +53,17 @@ app.add_middleware(
 )
 
 # --- CONFIGURATION ---
+# Gestion des erreurs globales
+import traceback
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    print(f"❌ Erreur globale: {exc}")
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Erreur interne: {str(exc)}"}
+    )
 scan_sessions = {}
 STORAGE_DIR = os.path.join(tempfile.gettempdir(), "umbrella_scans")
 os.makedirs(STORAGE_DIR, exist_ok=True)
@@ -953,21 +964,39 @@ async def get_batch_result(
 # ============================================================
 # FIN NOUVEAUX ENDPOINTS
 # ============================================================
-
 @app.post("/convert/pdf-to-jpg")
-async def pdf_to_jpg_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
-    """Version mono-fichier (conservée pour compatibilité)"""
+async def pdf_to_jpg_endpoint(
+    background_tasks: BackgroundTasks, 
+    files: List[UploadFile] = File(...)  # Changé de 'file' à 'files'
+):
+    """Convertit un ou plusieurs PDFs en JPG"""
     temp_dir = tempfile.mkdtemp()
+    all_processed_files = []
+    
     try:
-        in_p = os.path.join(temp_dir, file.filename)
-        with open(in_p, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-        processed_files = pdf_to_images(in_p, temp_dir)
-        return handle_batch_response(processed_files, background_tasks, temp_dir)
+        for file in files:
+            # Vérifier que c'est un PDF
+            if file.content_type != "application/pdf":
+                raise HTTPException(400, f"{file.filename} n'est pas un PDF")
+            
+            # Sauvegarder le fichier
+            in_p = os.path.join(temp_dir, file.filename)
+            with open(in_p, "wb") as f:
+                shutil.copyfileobj(file.file, f)
+            
+            # Convertir ce PDF en images
+            processed = pdf_to_images(in_p, temp_dir)
+            all_processed_files.extend(processed)
+        
+        if not all_processed_files:
+            raise Exception("Aucune image générée")
+        
+        return handle_batch_response(all_processed_files, background_tasks, temp_dir)
+        
     except Exception as e:
         cleanup(temp_dir)
         raise HTTPException(500, detail=str(e))
-        
+                
 @app.post("/edit/pdf-to-pdfa")
 async def pdf_to_pdfa_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     temp_dir = tempfile.mkdtemp()
@@ -1131,7 +1160,7 @@ async def translate_pdf_endpoint(
 @app.post("/edit/intelligence")
 async def ai_pdf_analysis(
     file: UploadFile = File(...),
-    task: str = Form("summary") # summary, keywords, or extract_data
+    task: str = Form("summary")
 ):
     temp_dir = tempfile.mkdtemp()
     try:
@@ -1139,29 +1168,40 @@ async def ai_pdf_analysis(
         with open(in_p, "wb") as f:
             shutil.copyfileobj(file.file, f)
 
-        # 1. Extraction du texte brut (nécessaire pour l'IA)
         from utils.ocr import get_text_content
         text_content = get_text_content(in_p)
 
         if not text_content.strip():
             raise Exception("Le document semble vide ou illisible.")
 
-        # 2. Appel à un LLM (OpenAI GPT-4o ou Claude 3.5)
-        from utils.ai import process_ai_task
-        analysis_result = await process_ai_task(text_content, task)
+        # Version sans OpenAI (pour Render free)
+        if task == "summary":
+            result = {
+                "summary": text_content[:500] + "..." if len(text_content) > 500 else text_content,
+                "word_count": len(text_content.split())
+            }
+        elif task == "extract":
+            result = {
+                "keywords": text_content[:200],
+                "char_count": len(text_content)
+            }
+        else:
+            result = {
+                "analysis": text_content[:500],
+                "note": "Version hors ligne - Activez OpenAI pour plus de fonctionnalités"
+            }
 
-        # On nettoie tout de suite car on renvoie du texte, pas un fichier
         cleanup(temp_dir)
         
         return {
             "status": "success",
             "task": task,
-            "result": analysis_result
+            "result": result
         }
     except Exception as e:
         cleanup(temp_dir)
-        raise HTTPException(500, detail=f"Erreur IA : {str(e)}")
-
+        raise HTTPException(500, detail=f"Erreur: {str(e)}")
+        
 def cleanup(temp_path: str):
     if os.path.exists(temp_path):
         if os.path.isdir(temp_path):
