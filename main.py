@@ -1049,30 +1049,50 @@ async def protect_pdf_endpoint(
 async def sign_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    signature_base64: str = Form(...)
+    signature_base64: str = Form(...),
+    signature_position: str = Form("bottom-left"),
+    signature_all_pages: bool = Form(False)
 ):
+    """
+    Signe un PDF avec choix de l'emplacement
+    """
     temp_dir = tempfile.mkdtemp()
     try:
         in_p = os.path.join(temp_dir, file.filename)
-        # On sauvegarde sur disque d'abord pour préserver la RAM
         with open(in_p, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-            
-        # On lit le fichier seulement au moment du traitement
+        
         with open(in_p, "rb") as f:
             file_bytes = f.read()
         
-        signed_buffer = process_pdf_signature(file_bytes, signature_base64)
+        signed_buffer = process_pdf_signature(
+            file_bytes, 
+            signature_base64,
+            position=signature_position,
+            all_pages=signature_all_pages
+        )
         
         out_p = os.path.join(temp_dir, f"signed_{file.filename}")
         with open(out_p, "wb") as f:
             f.write(signed_buffer.getbuffer())
+        
+        # Ajouter métadonnées de signature
+        from datetime import datetime
+        from pikepdf import Pdf, Name, String
+        
+        pdf = Pdf.open(out_p)
+        pdf.doc_info[Name("/Signer")] = String("Utilisateur")
+        pdf.doc_info[Name("/SignatureDate")] = String(datetime.now().isoformat())
+        pdf.doc_info[Name("/SignaturePosition")] = String(signature_position)
+        pdf.save(out_p)
+        pdf.close()
             
         return handle_batch_response([out_p], background_tasks, temp_dir)
+        
     except Exception as e:
         background_tasks.add_task(cleanup, temp_dir)
         raise HTTPException(500, detail=str(e))
-
+        
 def cleanup_expired_scans():
     """
     Garbage Collector optimisé pour Makem Group / 360PDF.

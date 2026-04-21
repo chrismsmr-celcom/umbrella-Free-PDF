@@ -1,56 +1,182 @@
-import io
+import os
 import base64
+import io
+from PIL import Image, ImageDraw, ImageFont
+from typing import Optional, Tuple
 from pypdf import PdfReader, PdfWriter
-from reportlab.pdfgen import canvas
-from reportlab.lib.utils import ImageReader
 
-def process_pdf_signature(file_bytes, signature_base64, x=50, y=50):
+def process_pdf_signature(
+    file_bytes: bytes, 
+    signature_base64: str, 
+    position: str = "bottom-left",
+    all_pages: bool = False
+) -> io.BytesIO:
+    """
+    Ajoute une signature à un PDF avec choix de l'emplacement
+    """
     try:
-        # 1. Nettoyage et décodage du Base64
         if "," in signature_base64:
-            header, encoded = signature_base64.split(",", 1)
-        else:
-            encoded = signature_base64
-            
-        sig_data = base64.b64decode(encoded)
-        sig_img = ImageReader(io.BytesIO(sig_data))
-
-        # 2. Charger le PDF original pour connaître la taille de la dernière page
-        original_pdf = PdfReader(io.BytesIO(file_bytes))
-        last_page = original_pdf.pages[-1]
+            signature_base64 = signature_base64.split(",")[1]
         
-        # Récupérer les dimensions réelles (MediaBox)
-        width = float(last_page.mediabox.width)
-        height = float(last_page.mediabox.height)
-
-        # 3. Créer le calque (Overlay) à la TAILLE EXACTE de la page
-        packet = io.BytesIO()
-        can = canvas.Canvas(packet, pagesize=(width, height))
+        signature_bytes = base64.b64decode(signature_base64)
+        signature_img = Image.open(io.BytesIO(signature_bytes))
         
-        # Dessiner la signature (ajuste width/height selon tes besoins)
-        # On utilise x et y fournis, mais attention au repère (0,0 est en bas à gauche)
-        can.drawImage(sig_img, x, y, width=150, height=75, mask='auto', preserveAspectRatio=True)
-        can.showPage() # Important pour finaliser la page
-        can.save()
-        packet.seek(0)
+        # Redimensionner
+        max_width = 200
+        max_height = 80
+        if signature_img.width > max_width or signature_img.height > max_height:
+            ratio = min(max_width / signature_img.width, max_height / signature_img.height)
+            new_size = (int(signature_img.width * ratio), int(signature_img.height * ratio))
+            signature_img = signature_img.resize(new_size, Image.Resampling.LANCZOS)
         
-        overlay_pdf = PdfReader(packet)
-        overlay_page = overlay_pdf.pages[0]
-
-        # 4. Fusionner et générer le résultat
+        # Convertir en RGB
+        if signature_img.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', signature_img.size, (255, 255, 255))
+            if signature_img.mode == 'RGBA':
+                background.paste(signature_img, mask=signature_img.split()[3])
+            else:
+                background.paste(signature_img)
+            signature_img = background
+        
+        temp_signature = io.BytesIO()
+        signature_img.save(temp_signature, 'PNG')
+        temp_signature.seek(0)
+        
+        reader = PdfReader(io.BytesIO(file_bytes))
         writer = PdfWriter()
-
-        for i, page in enumerate(original_pdf.pages):
-            if i == len(original_pdf.pages) - 1:
-                # Fusion de la signature sur la dernière page
-                page.merge_page(overlay_page)
+        
+        # Déterminer les pages à signer
+        pages_to_sign = range(len(reader.pages)) if all_pages else [len(reader.pages) - 1]
+        
+        for i, page in enumerate(reader.pages):
             writer.add_page(page)
-
+            
+            if i in pages_to_sign:
+                # Calculer les coordonnées
+                page_width = float(page.mediabox.width)
+                page_height = float(page.mediabox.height)
+                img_width = signature_img.width
+                img_height = signature_img.height
+                
+                margin = 50
+                
+                if position == 'top-left':
+                    x, y = margin, margin
+                elif position == 'top-right':
+                    x, y = page_width - img_width - margin, margin
+                elif position == 'top-center':
+                    x, y = (page_width - img_width) / 2, margin
+                elif position == 'middle-left':
+                    x, y = margin, (page_height - img_height) / 2
+                elif position == 'center':
+                    x, y = (page_width - img_width) / 2, (page_height - img_height) / 2
+                elif position == 'middle-right':
+                    x, y = page_width - img_width - margin, (page_height - img_height) / 2
+                elif position == 'bottom-left':
+                    x, y = margin, page_height - img_height - margin
+                elif position == 'bottom-center':
+                    x, y = (page_width - img_width) / 2, page_height - img_height - margin
+                else:  # bottom-right par défaut
+                    x, y = page_width - img_width - margin, page_height - img_height - margin
+                
+                page.merge_page(
+                    PdfReader(temp_signature).pages[0],
+                    over=True,
+                    transform=(1, 0, 0, 1, x, y)
+                )
+        
         output = io.BytesIO()
         writer.write(output)
         output.seek(0)
         
         return output
+        
     except Exception as e:
-        print(f"DEBUG SIGNATURE: {e}")
-        raise Exception(f"Erreur signature: {str(e)}")
+        print(f"Erreur signature: {e}")
+        raise
+
+def create_text_signature(name: str, initials: str, color: str = "#555555") -> str:
+    """
+    Crée une signature textuelle
+    """
+    try:
+        # Taille de l'image
+        img_width = 300
+        img_height = 100
+        
+        # Créer l'image
+        img = Image.new('RGB', (img_width, img_height), 'white')
+        draw = ImageDraw.Draw(img)
+        
+        # Police par défaut (utiliser une police système)
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 36)
+        except:
+            font = ImageFont.load_default()
+        
+        # Dessiner le texte
+        draw.text((20, 30), name, fill=color, font=font)
+        
+        # Ajouter la date
+        from datetime import datetime
+        date_str = datetime.now().strftime("%d/%m/%Y")
+        try:
+            small_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+        except:
+            small_font = ImageFont.load_default()
+        draw.text((20, 70), f"Signé le: {date_str}", fill="#888888", font=small_font)
+        
+        # Convertir en base64
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        
+        return f"data:image/png;base64,{img_base64}"
+        
+    except Exception as e:
+        print(f"Erreur création signature texte: {e}")
+        return None
+
+def create_stamp_signature(company_name: str, company_info: str, color: str = "#555555") -> str:
+    """
+    Crée un tampon d'entreprise
+    """
+    try:
+        from PIL import ImageDraw, ImageFont
+        
+        img_width = 400
+        img_height = 150
+        
+        img = Image.new('RGB', (img_width, img_height), 'white')
+        draw = ImageDraw.Draw(img)
+        
+        # Police
+        try:
+            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
+            font_normal = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
+        except:
+            font_title = ImageFont.load_default()
+            font_normal = ImageFont.load_default()
+        
+        # Dessiner un cadre
+        draw.rectangle([10, 10, img_width - 10, img_height - 10], outline=color, width=2)
+        
+        # Texte
+        draw.text((20, 30), company_name, fill=color, font=font_title)
+        draw.text((20, 65), company_info, fill="#888888", font=font_normal)
+        
+        # Date
+        from datetime import datetime
+        date_str = datetime.now().strftime("%d/%m/%Y")
+        draw.text((20, 100), f"Date: {date_str}", fill="#888888", font=font_normal)
+        
+        # Convertir en base64
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        
+        return f"data:image/png;base64,{img_base64}"
+        
+    except Exception as e:
+        print(f"Erreur création tampon: {e}")
+        return None
