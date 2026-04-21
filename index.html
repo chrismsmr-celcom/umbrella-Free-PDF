@@ -337,7 +337,327 @@ let drawingCtx = null;
 let drawingCanvas = null;
 let currentBrush = "pen";
 let currentBatchInterval = null;
+// ========== FONCTIONS GLOBALES DE SIGNATURE ==========
 
+let currentSignatureMethod = 'text';
+let currentSignatureColor = '#311038';
+let currentInitialsColor = '#311038';
+let uploadedSignatureData = null;
+let signatureCanvas = null;
+let signatureCtx = null;
+let isDrawingSign = false;
+let signaturePosition = 'bottom-left';
+let signatureOnAllPages = false;
+
+// Définition de la position
+window.setSignaturePosition = function(position) {
+    signaturePosition = position;
+    const buttons = ['top-left', 'top-right', 'top-center', 'middle-left', 'center', 'middle-right', 'bottom-left', 'bottom-right', 'bottom-center'];
+    buttons.forEach(pos => {
+        const btnId = `pos${pos.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')}Btn`;
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            if (pos === position) {
+                btn.style.background = 'var(--primary)';
+                btn.style.borderColor = 'var(--primary)';
+                btn.style.color = 'white';
+            } else {
+                btn.style.background = 'white';
+                btn.style.borderColor = '#ddd';
+                btn.style.color = '#333';
+            }
+        }
+    });
+};
+
+// Changement de méthode de signature
+window.switchSignatureMethod = function(method) {
+    currentSignatureMethod = method;
+    const textArea = document.getElementById('signatureTextArea');
+    const initialsArea = document.getElementById('signatureInitialsArea');
+    const drawArea = document.getElementById('signatureDrawArea');
+    const uploadArea = document.getElementById('signatureUploadArea');
+    const textBtn = document.getElementById('signMethodTextBtn');
+    const initialsBtn = document.getElementById('signMethodInitialsBtn');
+    const drawBtn = document.getElementById('signMethodDrawBtn');
+    const uploadBtn = document.getElementById('signMethodUploadBtn');
+    
+    const activeStyle = { background: 'var(--primary)' };
+    const inactiveStyle = { background: '#666' };
+    
+    if (method === 'text') {
+        if (textArea) textArea.style.display = 'block';
+        if (initialsArea) initialsArea.style.display = 'none';
+        if (drawArea) drawArea.style.display = 'none';
+        if (uploadArea) uploadArea.style.display = 'none';
+        if (textBtn) textBtn.style.background = 'var(--primary)';
+        if (initialsBtn) initialsBtn.style.background = '#666';
+        if (drawBtn) drawBtn.style.background = '#666';
+        if (uploadBtn) uploadBtn.style.background = '#666';
+        updateNamePreview();
+    } else if (method === 'initials') {
+        if (textArea) textArea.style.display = 'none';
+        if (initialsArea) initialsArea.style.display = 'block';
+        if (drawArea) drawArea.style.display = 'none';
+        if (uploadArea) uploadArea.style.display = 'none';
+        if (textBtn) textBtn.style.background = '#666';
+        if (initialsBtn) initialsBtn.style.background = 'var(--primary)';
+        if (drawBtn) drawBtn.style.background = '#666';
+        if (uploadBtn) uploadBtn.style.background = '#666';
+        updateInitialsPreview();
+    } else if (method === 'draw') {
+        if (textArea) textArea.style.display = 'none';
+        if (initialsArea) initialsArea.style.display = 'none';
+        if (drawArea) drawArea.style.display = 'block';
+        if (uploadArea) uploadArea.style.display = 'none';
+        if (textBtn) textBtn.style.background = '#666';
+        if (initialsBtn) initialsBtn.style.background = '#666';
+        if (drawBtn) drawBtn.style.background = 'var(--primary)';
+        if (uploadBtn) uploadBtn.style.background = '#666';
+        setTimeout(initDrawCanvas, 100);
+    } else if (method === 'upload') {
+        if (textArea) textArea.style.display = 'none';
+        if (initialsArea) initialsArea.style.display = 'none';
+        if (drawArea) drawArea.style.display = 'none';
+        if (uploadArea) uploadArea.style.display = 'block';
+        if (textBtn) textBtn.style.background = '#666';
+        if (initialsBtn) initialsBtn.style.background = '#666';
+        if (drawBtn) drawBtn.style.background = '#666';
+        if (uploadBtn) uploadBtn.style.background = 'var(--primary)';
+    }
+};
+
+// Couleur pour le nom
+window.setSignatureColor = function(color) {
+    currentSignatureColor = color;
+    updateNamePreview();
+    if (signatureCtx) {
+        signatureCtx.strokeStyle = color;
+    }
+};
+
+// Couleur pour les initiales
+window.setInitialsColor = function(color) {
+    currentInitialsColor = color;
+    updateInitialsPreview();
+};
+
+// Effacer le canvas
+window.clearSignature = function() {
+    if (signatureCtx && signatureCanvas) {
+        signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+    }
+};
+
+// Effacer l'image importée
+window.clearUploadedSignature = function() {
+    uploadedSignatureData = null;
+    const previewDiv = document.getElementById('signaturePreview');
+    const previewImg = document.getElementById('signaturePreviewImg');
+    const fileInput = document.getElementById('signatureFileInput');
+    if (previewDiv) previewDiv.style.display = 'none';
+    if (previewImg) previewImg.src = '';
+    if (fileInput) fileInput.value = '';
+};
+
+// Initialisation du canvas de dessin
+function initDrawCanvas() {
+    const canvas = document.getElementById('signaturePad');
+    if (!canvas) return;
+    signatureCanvas = canvas;
+    signatureCtx = canvas.getContext("2d");
+    signatureCtx.strokeStyle = currentSignatureColor;
+    signatureCtx.lineWidth = 2;
+    signatureCtx.lineCap = "round";
+    
+    const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        let clientX, clientY;
+        if (e.touches) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        return { 
+            x: (clientX - rect.left) * scaleX, 
+            y: (clientY - rect.top) * scaleY 
+        };
+    };
+    
+    const start = (e) => {
+        e.preventDefault();
+        isDrawingSign = true;
+        const p = getPos(e);
+        signatureCtx.beginPath();
+        signatureCtx.moveTo(p.x, p.y);
+    };
+    
+    const draw = (e) => {
+        if (!isDrawingSign) return;
+        e.preventDefault();
+        const p = getPos(e);
+        signatureCtx.lineTo(p.x, p.y);
+        signatureCtx.stroke();
+    };
+    
+    const stop = () => { isDrawingSign = false; };
+    
+    canvas.removeEventListener("mousedown", start);
+    canvas.removeEventListener("mousemove", draw);
+    canvas.removeEventListener("touchstart", start);
+    canvas.removeEventListener("touchmove", draw);
+    canvas.removeEventListener("touchend", stop);
+    
+    canvas.addEventListener("mousedown", start);
+    canvas.addEventListener("mousemove", draw);
+    window.addEventListener("mouseup", stop);
+    canvas.addEventListener("touchstart", start);
+    canvas.addEventListener("touchmove", draw);
+    canvas.addEventListener("touchend", stop);
+}
+
+// Mise à jour de l'aperçu du nom
+function updateNamePreview() {
+    const nameInput = document.getElementById('signatureNameInput');
+    const fontSelect = document.getElementById('signatureFontSelect');
+    const preview = document.getElementById('previewSignature');
+    if (!preview) return;
+    
+    const name = nameInput ? nameInput.value : 'Jean Dupont';
+    const font = fontSelect ? fontSelect.value : 'cursive';
+    
+    preview.textContent = name || 'Jean Dupont';
+    let fontFamily = 'cursive';
+    if (font === 'elegant') fontFamily = "'Great Vibes', 'Brush Script MT', cursive";
+    else if (font === 'bold') fontFamily = "'Arial Black', sans-serif";
+    else if (font === 'script') fontFamily = "'Pacifico', 'Brush Script MT', cursive";
+    else fontFamily = "'Brush Script MT', 'Segoe Script', cursive";
+    preview.style.fontFamily = fontFamily;
+    preview.style.color = currentSignatureColor;
+}
+
+// Mise à jour de l'aperçu des initiales
+function updateInitialsPreview() {
+    const initialsInput = document.getElementById('signatureInitialsInput');
+    const styleSelect = document.getElementById('initialsStyleSelect');
+    const preview = document.getElementById('previewInitials');
+    if (!preview) return;
+    
+    const initials = initialsInput ? initialsInput.value : 'JD';
+    const style = styleSelect ? styleSelect.value : 'simple';
+    
+    preview.textContent = initials.toUpperCase() || 'JD';
+    preview.style.color = currentInitialsColor;
+    
+    if (style === 'circle') {
+        preview.style.cssText = `border: 2px solid ${currentInitialsColor}; border-radius: 50%; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 32px; color: ${currentInitialsColor};`;
+    } else if (style === 'square') {
+        preview.style.cssText = `border: 2px solid ${currentInitialsColor}; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 32px; color: ${currentInitialsColor};`;
+    } else if (style === 'underline') {
+        preview.style.cssText = `border-bottom: 3px solid ${currentInitialsColor}; padding-bottom: 5px; display: inline-block; font-size: 48px; color: ${currentInitialsColor};`;
+    } else {
+        preview.style.cssText = `font-size: 48px; color: ${currentInitialsColor};`;
+    }
+}
+
+// Génération de la signature textuelle en image
+function generateTextSignatureImage(name, color, font) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 400;
+    canvas.height = 100;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    let fontFamily = 'cursive';
+    if (font === 'elegant') fontFamily = 'Georgia, serif';
+    else if (font === 'bold') fontFamily = 'Arial Black, sans-serif';
+    else if (font === 'script') fontFamily = 'Comic Sans MS, cursive';
+    else fontFamily = 'Brush Script MT, cursive';
+    
+    ctx.font = `36px ${fontFamily}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.fillText(name || 'Signature', canvas.width / 2, canvas.height / 2 + 10);
+    
+    return canvas.toDataURL('image/png');
+}
+
+// Génération de la signature d'initiales en image
+function generateInitialsImage(initials, color, style) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 150;
+    canvas.height = 100;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.font = `48px Arial, sans-serif`;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    
+    if (style === 'circle') {
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, canvas.height / 2, 40, 0, 2 * Math.PI);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillText(initials.toUpperCase() || 'JD', canvas.width / 2, canvas.height / 2 + 10);
+    } else if (style === 'square') {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(35, 15, 80, 70);
+        ctx.fillText(initials.toUpperCase() || 'JD', canvas.width / 2, canvas.height / 2 + 10);
+    } else if (style === 'underline') {
+        ctx.fillText(initials.toUpperCase() || 'JD', canvas.width / 2, canvas.height / 2 + 10);
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2 - 40, canvas.height / 2 + 20);
+        ctx.lineTo(canvas.width / 2 + 40, canvas.height / 2 + 20);
+        ctx.stroke();
+    } else {
+        ctx.fillText(initials.toUpperCase() || 'JD', canvas.width / 2, canvas.height / 2 + 10);
+    }
+    
+    return canvas.toDataURL('image/png');
+}
+
+// Écouteurs pour les aperçus
+document.addEventListener('DOMContentLoaded', function() {
+    const nameInput = document.getElementById('signatureNameInput');
+    if (nameInput) nameInput.addEventListener('input', updateNamePreview);
+    
+    const fontSelect = document.getElementById('signatureFontSelect');
+    if (fontSelect) fontSelect.addEventListener('change', updateNamePreview);
+    
+    const initialsInput = document.getElementById('signatureInitialsInput');
+    if (initialsInput) initialsInput.addEventListener('input', updateInitialsPreview);
+    
+    const initialsStyleSelect = document.getElementById('initialsStyleSelect');
+    if (initialsStyleSelect) initialsStyleSelect.addEventListener('change', updateInitialsPreview);
+    
+    // Gestion de l'upload de signature
+    const fileInput = document.getElementById('signatureFileInput');
+    if (fileInput) {
+        fileInput.onchange = function(e) {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    uploadedSignatureData = evt.target.result;
+                    const previewImg = document.getElementById('signaturePreviewImg');
+                    const previewDiv = document.getElementById('signaturePreview');
+                    if (previewImg) previewImg.src = uploadedSignatureData;
+                    if (previewDiv) previewDiv.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+    }
+});
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 const routeMapping = {
