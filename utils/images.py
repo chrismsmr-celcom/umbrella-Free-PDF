@@ -26,16 +26,29 @@ def images_to_pdf(image_paths, output_path):
             )
             return output_path
     except Exception as e:
-        print(f"❌ Erreur images_to_pdf : {e}")
+        print(f"Erreur images_to_pdf : {e}")
         return None
     return None
 
-def pdf_to_images(pdf_path, output_dir, fmt="jpg"):
+def pdf_to_images(pdf_path, output_dir, prefix="page", fmt="jpg"):
     """
     Convertit chaque page d'un PDF en image individuelle.
-    Idéal pour l'aperçu ou le partage de documents.
+    
+    Args:
+        pdf_path: Chemin du PDF source
+        output_dir: Dossier de sortie
+        prefix: Préfixe pour les noms des images (ex: "monfichier_page_1.jpg")
+        fmt: Format de sortie (jpg, png)
+    
+    Returns:
+        Liste des chemins des images générées
     """
     try:
+        # Nettoyer le préfixe (supprimer les caractères dangereux)
+        clean_prefix = "".join(c for c in prefix if c.isalnum() or c in "._-")
+        if not clean_prefix or clean_prefix == "":
+            clean_prefix = "page"
+        
         # Ouverture du document
         doc = fitz.open(pdf_path)
         saved_paths = []
@@ -46,7 +59,8 @@ def pdf_to_images(pdf_path, output_dir, fmt="jpg"):
             # Matrix(2, 2) augmente la résolution pour éviter le flou (équivalent ~150-200 DPI)
             pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
             
-            image_name = f"page_{i+1}.{fmt}"
+            # Nom unique avec préfixe
+            image_name = f"{clean_prefix}_page_{i+1}.{fmt}"
             image_path = os.path.join(output_dir, image_name)
             
             # Sauvegarde de l'image
@@ -56,5 +70,6 @@ def pdf_to_images(pdf_path, output_dir, fmt="jpg"):
         doc.close()
         return saved_paths
     except Exception as e:
-        print(f"❌ Erreur pdf_to_images : {e}")
+        print(f"Erreur pdf_to_images : {e}")
         return []
+    
