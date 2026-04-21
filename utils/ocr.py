@@ -23,18 +23,17 @@ def handle_ocr(input_path: str, output_dir: str, language: str = "fra") -> Optio
         
         output_path = os.path.join(output_dir, f"ocr_result_{int(time.time())}.pdf")
         
-        # Correction: utiliser --redo-ocr au lieu de --force-ocr + --skip-text
+        # Solution: utiliser --output-type pdf pour eviter Ghostscript
         cmd = [
             "ocrmypdf",
-            "--redo-ocr",            # Un seul flag au lieu de --force-ocr + --skip-text
+            "--force-ocr",           # Force l'OCR et ignore le texte existant
             "--language", language,
             "--jobs", "1",
-            "--output-type", "pdfa",
+            "--output-type", "pdf",  # Changement: pdf au lieu de pdfa pour eviter Ghostscript
             "--optimize", "1",
-            "--pdfa-image-compression", "jpeg",
-            "--jpeg-quality", "75",
             "--tesseract-timeout", "60",
             "--continue-on-soft-render-error",
+            "--skip-big-images",     # Ignore les grandes images pour economiser RAM
             input_path,
             output_path
         ]
