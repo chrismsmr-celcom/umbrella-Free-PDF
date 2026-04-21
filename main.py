@@ -13,7 +13,7 @@ from fastapi import APIRouter, Form, HTTPException
 
 # FastAPI & Responses
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Request
-from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse
+from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse, JSONResponse  # AJOUTÉ JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -974,29 +974,37 @@ async def pdf_to_jpg_endpoint(
     all_processed_files = []
     
     try:
-        for file in files:
-            # Vérifier que c'est un PDF
+        for idx, file in enumerate(files):
             if file.content_type != "application/pdf":
-                raise HTTPException(400, f"{file.filename} n'est pas un PDF")
+                continue
             
             # Sauvegarder le fichier
-            in_p = os.path.join(temp_dir, file.filename)
-            with open(in_p, "wb") as f:
+            safe_name = secure_filename(file.filename)
+            file_path = os.path.join(temp_dir, f"input_{idx}_{safe_name}")
+            
+            with open(file_path, "wb") as f:
                 shutil.copyfileobj(file.file, f)
             
-            # Convertir ce PDF en images
-            processed = pdf_to_images(in_p, temp_dir)
-            all_processed_files.extend(processed)
+            # Générer un préfixe unique pour chaque PDF
+            base_name = os.path.splitext(safe_name)[0]
+            
+            # Convertir ce PDF en images avec préfixe unique
+            images = pdf_to_images(file_path, temp_dir, prefix=base_name)
+            all_processed_files.extend(images)
+            
+            # Nettoyer le PDF temporaire
+            if os.path.exists(file_path):
+                os.remove(file_path)
         
         if not all_processed_files:
-            raise Exception("Aucune image générée")
+            raise HTTPException(400, "Aucune image générée")
         
         return handle_batch_response(all_processed_files, background_tasks, temp_dir)
         
     except Exception as e:
         cleanup(temp_dir)
         raise HTTPException(500, detail=str(e))
-                
+                                
 @app.post("/edit/pdf-to-pdfa")
 async def pdf_to_pdfa_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     temp_dir = tempfile.mkdtemp()
@@ -1125,7 +1133,7 @@ async def translate_pdf_endpoint(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     target_lang: str = Form("en"),
-    layout: str = Form("layout") # 'layout' (conserver) ou 'text' (uniquement texte)
+    layout: str = Form("layout")
 ):
     temp_dir = tempfile.mkdtemp()
     try:
@@ -1133,15 +1141,11 @@ async def translate_pdf_endpoint(
         with open(in_p, "wb") as f:
             shutil.copyfileobj(file.file, f)
 
-        # On importe la fonction qu'on a créée dans utils/translate.py
         from utils.translate import handle_translation
         
-        # On lance la traduction (Open Source / Lingva)
-        # On passe layout pour que handle_translation sache s'il doit garder le style
         result_pdf = await handle_translation(in_p, temp_dir, target_lang, layout)
 
         if result_pdf and os.path.exists(result_pdf):
-            # On nettoie le dossier après l'envoi
             background_tasks.add_task(cleanup, temp_dir)
             
             return FileResponse(
@@ -1150,11 +1154,11 @@ async def translate_pdf_endpoint(
                 media_type="application/pdf"
             )
         
-        raise Exception("La génération du PDF traduit a échoué.")
+        raise Exception("La generation du PDF traduit a echoue.")
 
     except Exception as e:
         cleanup(temp_dir)
-        print(f"❌ Erreur endpoint Traduction: {e}")
+        print(f"Erreur endpoint Traduction: {e}")
         raise HTTPException(500, detail=str(e))
 
 @app.post("/edit/intelligence")
@@ -1174,7 +1178,6 @@ async def ai_pdf_analysis(
         if not text_content.strip():
             raise Exception("Le document semble vide ou illisible.")
 
-        # Version sans OpenAI (pour Render free)
         if task == "summary":
             result = {
                 "summary": text_content[:500] + "..." if len(text_content) > 500 else text_content,
@@ -1188,7 +1191,7 @@ async def ai_pdf_analysis(
         else:
             result = {
                 "analysis": text_content[:500],
-                "note": "Version hors ligne - Activez OpenAI pour plus de fonctionnalités"
+                "note": "Version hors ligne - Activez OpenAI pour plus de fonctionnalites"
             }
 
         cleanup(temp_dir)
@@ -1201,14 +1204,47 @@ async def ai_pdf_analysis(
     except Exception as e:
         cleanup(temp_dir)
         raise HTTPException(500, detail=f"Erreur: {str(e)}")
-        
+
 def cleanup(temp_path: str):
     if os.path.exists(temp_path):
         if os.path.isdir(temp_path):
             shutil.rmtree(temp_path)
         else:
             os.remove(temp_path)
-            
+
+# --- PAGES LEGALES ---
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_policy():
+    if os.path.exists("privacy.html"):
+        with open("privacy.html", "r", encoding="utf-8") as f:
+            return f.read()
+    return HTMLResponse("<h1>Politique de confidentialite</h1><p>Page en cours de redaction.</p>")
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_of_service():
+    if os.path.exists("terms.html"):
+        with open("terms.html", "r", encoding="utf-8") as f:
+            return f.read()
+    return HTMLResponse("<h1>Conditions d'utilisation</h1><p>Page en cours de redaction.</p>")
+
+@app.get("/license", response_class=HTMLResponse)
+async def license_page():
+    if os.path.exists("license.html"):
+        with open("license.html", "r", encoding="utf-8") as f:
+            return f.read()
+    return HTMLResponse("<h1>Licence MIT</h1><p>Page en cours de redaction.</p>")
+@app.get("/privacy")
+async def privacy_redirect():
+    return HTMLResponse('<meta http-equiv="refresh" content="0; url=/privacy.html">')
+
+@app.get("/terms")
+async def terms_redirect():
+    return HTMLResponse('<meta http-equiv="refresh" content="0; url=/terms.html">')
+
+@app.get("/license")
+async def license_redirect():
+    return HTMLResponse('<meta http-equiv="refresh" content="0; url=/LICENSE.html">')
 # --- FRONTEND ---
 
 if os.path.exists("assets"):
@@ -1226,7 +1262,7 @@ async def serve_index():
 async def startup_event():
     """Démarre le worker de queue batch"""
     await batch_processor.start_worker()
-    print("🚀 Umbrella PDF Engine démarré avec queue processor")
+    print("Umbrella PDF Engine demarre avec queue processor")
 
 if __name__ == "__main__":
     import uvicorn

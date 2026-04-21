@@ -167,6 +167,88 @@
        .file-grid::-webkit-scrollbar { width: 6px; }
        .file-grid::-webkit-scrollbar-track { background: #f0f0f5; border-radius: 10px; }
        .file-grid::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
+           /* Modal de consentement RGPD */
+.consent-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(8px);
+    z-index: 20000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.consent-card {
+    background: white;
+    max-width: 500px;
+    width: 100%;
+    border-radius: 28px;
+    padding: 30px;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    animation: modalSlideIn 0.4s ease;
+}
+
+.consent-card h3 {
+    color: var(--primary);
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+}
+
+.consent-card p {
+    color: #555;
+    line-height: 1.5;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+}
+
+.consent-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 25px;
+}
+
+.consent-btn-primary {
+    flex: 1;
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 40px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.consent-btn-secondary {
+    flex: 1;
+    background: #f0f0f5;
+    color: var(--primary);
+    border: none;
+    padding: 12px;
+    border-radius: 40px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.consent-link {
+    color: var(--primary);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.consent-footer {
+    margin-top: 20px;
+    font-size: 0.7rem;
+    color: #999;
+    text-align: center;
+}
    </style>
 </head>
 <body>
@@ -293,6 +375,26 @@
         <div id="modalFooter" class="modal-footer-custom">
             <button id="modalActionBtn" class="action-btn-full"></button>
         </div>
+    </div>
+</div>
+<div id="legalModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 10000; align-items: center; justify-content: center;">
+    <div style="background: white; max-width: 500px; width: 90%; margin: 20px; padding: 30px; border-radius: 20px; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.3);">
+        <h2 style="color: #311038; margin-top: 0;">Bienvenue sur Umbrella PDF Engine</h2>
+        <p>En utilisant ce service, vous acceptez les conditions suivantes :</p>
+        <ul style="margin: 15px 0; padding-left: 20px;">
+            <li style="margin: 8px 0;">Vos fichiers sont traites temporairement et supprimes apres 15 minutes</li>
+            <li style="margin: 8px 0;">Des donnees anonymisees peuvent etre collectees pour ameliorer le service</li>
+            <li style="margin: 8px 0;">Aucune donnee personnelle n'est revendue ou partagee avec des tiers</li>
+            <li style="margin: 8px 0;">Le service est totalement gratuit en echange de ces contributions anonymes</li>
+        </ul>
+        <div style="margin: 20px 0; text-align: center;">
+    <a href="/privacy" target="_blank" rel="noopener noreferrer" style="color: #311038; text-decoration: none; margin: 0 5px;">Politique de confidentialite</a>
+    <span style="color: #888;">|</span>
+    <a href="/terms" target="_blank" rel="noopener noreferrer" style="color: #311038; text-decoration: none; margin: 0 5px;">Conditions d'utilisation</a>
+    <span style="color: #888;">|</span>
+    <a href="/license" target="_blank" rel="noopener noreferrer" style="color: #311038; text-decoration: none; margin: 0 5px;">Licence</a>
+</div>        <button id="acceptLegalBtn" style="width: 100%; padding: 14px; background: #311038; color: #F0D13C; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; font-size: 1rem; margin-bottom: 10px;">J'accepte et je continue</button>
+        <button id="declineLegalBtn" style="width: 100%; padding: 12px; background: #f0f0f5; color: #666; border: none; border-radius: 50px; cursor: pointer;">Refuser</button>
     </div>
 </div>
 <div id="characterAnimation"></div>
@@ -551,7 +653,6 @@ if (dlBtn) {
 
         const finalRoute = routeMapping[currentRoute] || currentRoute;
 
-        // Interception pour les outils interactifs
         if (!isModalOpen) {
             if (currentRoute === "edit/sign") { openToolModal("sign"); return; }
             if (currentRoute === "security/protect") { openToolModal("protect"); return; }
@@ -564,13 +665,11 @@ if (dlBtn) {
         const formData = new FormData();
 
         try {
-            // Gestion des fichiers
             if (finalRoute.includes("html-to-pdf")) {
                 const file = selectedFiles[0];
                 const text = await file.text();
                 formData.append("html_content", text);
             } else {
-                // Liste des routes mono-fichier (pdf-to-jpg retiré pour support multi)
                 const isSingleRoutes = ["split", "protect", "unlock", "repair", "extract", "remove", "reorder", "compress", "ocr", "pdf-to-word", "pdf-to-excel", "pdf-to-pptx", "pdf-to-pdfa", "office-to-pdf"];
                 const isSingle = isSingleRoutes.some((slug) => finalRoute.includes(slug));
                 
@@ -581,7 +680,6 @@ if (dlBtn) {
                 }
             }
 
-            // Options OCR et Compression
             if (currentRoute.includes("ocr")) {
                 const langEl = document.getElementById("ocrLanguage");
                 const selectedLang = langEl ? langEl.value : (window.currentOCRLang || "fra");
@@ -592,7 +690,6 @@ if (dlBtn) {
                 formData.append("quality", qualEl ? qualEl.value : "medium");
             }
 
-            // Gestion des pages
             const toolsRequiringPages = ["remove", "extract", "reorder"];
             if (toolsRequiringPages.some((tool) => currentRoute.includes(tool))) {
                 let pagesValue = "";
@@ -625,7 +722,16 @@ if (dlBtn) {
             console.log("Envoi vers :", targetUrl);
             dlBtn.disabled = true;
 
-            const response = await fetch(targetUrl, { method: "POST", body: formData });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 300000);
+
+            const response = await fetch(targetUrl, { 
+                method: "POST", 
+                body: formData,
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
 
             if (response.ok) {
                 const blob = await response.blob();
@@ -645,10 +751,13 @@ if (dlBtn) {
                 a.download = `umbrella_${currentRoute.replace(/\//g, "_")}_${Date.now()}.${ext}`;
                 document.body.appendChild(a);
                 a.click();
-                a.remove();
+                
+                setTimeout(() => {
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                }, 100);
 
                 showToast("Traitement terminé avec succès !");
-                window.URL.revokeObjectURL(url);
                 resetUpload();
                 if (typeof closeUniversalModal === "function") closeUniversalModal();
             } else {
@@ -661,7 +770,11 @@ if (dlBtn) {
             }
         } catch (e) {
             console.error("Erreur :", e);
-            showToast("Impossible de joindre le serveur Umbrella.");
+            if (e.name === 'AbortError') {
+                showToast("La requête a pris trop de temps (5 minutes max)");
+            } else {
+                showToast("Impossible de joindre le serveur Umbrella.");
+            }
         } finally {
             setBtnLoading(false);
             dlBtn.disabled = false;
@@ -1541,7 +1654,9 @@ function showToast(message, duration = 2500) {
 }
 
 if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch((err) => console.log("SW error:", err)); });
+    window.addEventListener("load", () => { 
+        navigator.serviceWorker.register("/sw.js").catch((err) => console.log("SW error:", err)); 
+    });
 }
 
 window.addEventListener("resize", () => { if (cropper) cropper.resize(); });
@@ -1639,21 +1754,21 @@ function createParticles() {
 }
 
 const funnyMessages = [
-    "🤖 Les robots sont en train de travailler...",
-    "⚡ Optimisation des pixels...",
-    "🦄 Unicorn power activated...",
-    "🍿 Préparation du popcorn...",
-    "🎯 Visée parfaite...",
-    "🔮 Lecture dans les fichiers...",
-    "🚀 Décollage imminent...",
-    "🎨 Coloriage des pages...",
-    "📦 Emballage cadeau...",
-    "🎵 Mise en musique du PDF...",
-    "✨ Magie en cours...",
-    "🐢 Tortue ninja à l'œuvre...",
-    "🎪 Cirque du traitement...",
-    "🍕 Pizza en cours de livraison...",
-    "🎁 Déballage surprise..."
+    "Les robots sont en train de travailler...",
+    "Optimisation des pixels...",
+    "Unicorn power activated...",
+    "Preparation du popcorn...",
+    "Visee parfaite...",
+    "Lecture dans les fichiers...",
+    "Decollage imminent...",
+    "Coloriage des pages...",
+    "Emballage cadeau...",
+    "Mise en musique du PDF...",
+    "Magie en cours...",
+    "Tortue ninja à l'oeuvre...",
+    "Cirque du traitement...",
+    "Pizza en cours de livraison...",
+    "Deballage surprise..."
 ];
 
 function showFunnyMessage() {
@@ -1704,6 +1819,60 @@ function addDropzoneAnimation() {
     }
 }
 
+// ========== CONSENTEMENT LEGAL ==========
+(function() {
+    const CONSENT_KEY = 'umbrella_consent';
+    
+    function showModal() {
+        const modal = document.getElementById('legalModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    }
+    
+    function hideModal() {
+        const modal = document.getElementById('legalModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+    
+    window.acceptLegalConsent = function() {
+        localStorage.setItem(CONSENT_KEY, 'true');
+        localStorage.setItem('consent_date', new Date().toISOString());
+        hideModal();
+    };
+    
+    window.declineLegalConsent = function() {
+        localStorage.setItem(CONSENT_KEY, 'false');
+        alert('Vous devez accepter les conditions pour utiliser le service.');
+    };
+    
+    function checkConsent() {
+        const consent = localStorage.getItem(CONSENT_KEY);
+        if (!consent || consent === 'false') {
+            showModal();
+        }
+    }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            const acceptBtn = document.getElementById('acceptLegalBtn');
+            const declineBtn = document.getElementById('declineLegalBtn');
+            if (acceptBtn) acceptBtn.onclick = window.acceptLegalConsent;
+            if (declineBtn) declineBtn.onclick = window.declineLegalConsent;
+            checkConsent();
+        });
+    } else {
+        const acceptBtn = document.getElementById('acceptLegalBtn');
+        const declineBtn = document.getElementById('declineLegalBtn');
+        if (acceptBtn) acceptBtn.onclick = window.acceptLegalConsent;
+        if (declineBtn) declineBtn.onclick = window.declineLegalConsent;
+        checkConsent();
+    }
+})();
+
+// Initialisation des animations
 document.addEventListener('DOMContentLoaded', () => {
     addDropzoneAnimation();
     addFileHoverAnimation();
