@@ -20,3 +20,26 @@ docker build -t umbrella-engine .
 
 # Lancement du conteneur (Port 10000 pour Render)
 docker run -p 10000:10000 umbrella-engine
+# Keep Service Awake
+
+Ping automatique pour empêcher un service Render/Hébergement gratuit de s'endormir.
+
+## Configuration
+
+1. Remplacez `https://umbrella-free-pdf.onrender.com` par votre URL dans les fichiers
+2. Ajoutez plus d'URLs si nécessaire
+
+## Déploiement
+
+Ce script s'exécute automatiquement via GitHub Actions toutes les 10 minutes.
+
+## Exécution locale
+
+```bash
+# Node.js
+npm install
+node keep-alive.js
+
+# Python
+pip install requests
+python keep-alive.py
