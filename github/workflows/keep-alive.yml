@@ -17,16 +17,16 @@ jobs:
     - name: Ping service to keep it awake
       run: |
         echo "🕐 Pinging service at $(date)"
-        curl -s -o /dev/null -w "Status: %{http_code}\n" https://votre-service.onrender.com
+        curl -s -o /dev/null -w "Status: %{http_code}\n" https://umbrella-free-pdf.onrender.com
         echo "✅ Keep-alive ping sent"
     
     - name: Multi-URL ping (optionnel)
       run: |
         # Simule un trafic réaliste avec différentes URLs
         URLS=(
-          "https://votre-service.onrender.com/"
-          "https://votre-service.onrender.com/api/health"
-          "https://votre-service.onrender.com/status"
+          "https://umbrella-free-pdf.onrender.com/"
+          "https://umbrella-free-pdf.onrender.com/api/health"
+          "https://umbrella-free-pdf.onrender.com/status"
         )
         
         for URL in "${URLS[@]}"; do
