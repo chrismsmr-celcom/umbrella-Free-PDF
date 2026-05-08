@@ -11,6 +11,8 @@ from typing import List
 from PIL import Image, ImageOps
 from fastapi import APIRouter, Form, HTTPException
 
+start_time = time.time()
+
 # FastAPI & Responses
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Request
 from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse, JSONResponse  # AJOUTÉ JSONResponse
@@ -259,7 +261,48 @@ def secure_filename(filename: str) -> str:
         name, ext = os.path.splitext(safe)
         safe = name[:250] + ext
     return safe
+# ============================================================
+# KEEP-ALIVE ENDPOINTS - Pour éviter la mise en veille sur Render
+# ============================================================
 
+@app.get("/keep-alive")
+async def keep_alive():
+    """
+    Endpoint minimal pour garder le service actif.
+    Utilisé par UptimeRobot ou GitHub Actions pour pinger le service.
+    """
+    return {
+        "status": "alive",
+        "timestamp": time.time(),
+        "service": "Umbrella PDF Engine",
+        "uptime": round(time.time() - start_time, 2)
+    }
+
+@app.head("/keep-alive")
+async def keep_alive_head():
+    """
+    Version HEAD encore plus légère pour économiser les ressources.
+    """
+    return {"status": "ok"}
+
+@app.get("/health")
+async def health_check():
+    """
+    Endpoint de santé pour monitoring UptimeRobot / Cron-job.org
+    """
+    return {
+        "status": "healthy",
+        "uptime_seconds": round(time.time() - start_time, 2),
+        "timestamp": time.time()
+    }
+
+@app.get("/ping")
+async def ping():
+    """
+    Endpoint ultra-léger pour les pings rapides.
+    """
+    return "pong"
+    
 # --- LOGIQUE GÉNÉRIQUE BATCH ---
 
 def handle_batch_response(processed_files, background_tasks, temp_dir):
