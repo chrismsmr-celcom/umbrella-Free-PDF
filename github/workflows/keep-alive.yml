@@ -1,0 +1,36 @@
+name: Keep Service Awake
+
+on:
+  schedule:
+    # Exécute toutes les 10 minutes
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Permet une exécution manuelle
+
+jobs:
+  ping-service:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Ping service to keep it awake
+      run: |
+        echo "🕐 Pinging service at $(date)"
+        curl -s -o /dev/null -w "Status: %{http_code}\n" https://votre-service.onrender.com
+        echo "✅ Keep-alive ping sent"
+    
+    - name: Multi-URL ping (optionnel)
+      run: |
+        # Simule un trafic réaliste avec différentes URLs
+        URLS=(
+          "https://votre-service.onrender.com/"
+          "https://votre-service.onrender.com/api/health"
+          "https://votre-service.onrender.com/status"
+        )
+        
+        for URL in "${URLS[@]}"; do
+          echo "📍 Pinging $URL"
+          curl -s -o /dev/null -w "Status: %{http_code} | Time: %{time_total}s\n" "$URL"
+          sleep 2
+        done
